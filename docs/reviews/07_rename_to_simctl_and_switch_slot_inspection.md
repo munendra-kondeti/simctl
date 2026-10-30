@@ -51,3 +51,4 @@
   - Suggested command dynamically adapted to `simctl switch-slot 1`.
 - **JSON Output (`simctl switch-slot --json`)**:
   - Valid JSON schema output with `suggested_slot` and `suggested_command`.
+

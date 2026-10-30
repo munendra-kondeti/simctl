@@ -85,6 +85,13 @@ fn handle_status(mgr: &ModemManager, config: &Config, cli: &Cli, args: &StatusAr
 }
 
 fn handle_disable(mgr: &ModemManager, config: &Config, cli: &Cli, args: &ActionArgs) -> Result<()> {
+    let qmi_dev = mgr.resolve_device(&config.modem.device);
+    let modem_id = mgr
+        .resolve_modem_id(&config.modem.modem_id)
+        .unwrap_or_else(|_| "0".to_string());
+
+    mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
+
     let slot = config.resolve_slot(args.slot.or(cli.slot));
     let res = mgr.disable_ims(config, slot, args.dry_run)?;
 
