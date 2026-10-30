@@ -25,7 +25,7 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     pub modem: Option<String>,
 
-    /// Target SIM slot to manage (default: 1)
+    /// Target SIM slot to manage [1, 2, all] (default: all)
     #[arg(short, long, global = true, value_enum)]
     pub slot: Option<SlotSelection>,
 
@@ -50,16 +50,6 @@ pub enum SlotSelection {
     Slot2,
     #[value(name = "all")]
     All,
-}
-
-impl SlotSelection {
-    pub fn as_u8(self) -> Option<u8> {
-        match self {
-            SlotSelection::Slot1 => Some(1),
-            SlotSelection::Slot2 => Some(2),
-            SlotSelection::All => None,
-        }
-    }
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -134,14 +124,14 @@ pub struct ProfileDeleteArgs {
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct StatusArgs {
-    /// Target SIM slot (1, 2, or all)
+    /// Target SIM slot (1, 2, or all) (default: all)
     #[arg(short, long, value_enum)]
     pub slot: Option<SlotSelection>,
 }
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct ActionArgs {
-    /// Target SIM slot (1, 2, or all)
+    /// Target SIM slot (1, 2, or all) (default: all)
     #[arg(short, long, value_enum)]
     pub slot: Option<SlotSelection>,
 

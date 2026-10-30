@@ -107,7 +107,7 @@ To eliminate race conditions, `dimsd` enforces a strict sequence:
 # 1. View full status of both SIM slots, APN profiles, and bearers
 sudo dimsd status
 
-# 2. Disable IMS/VoLTE on default slot (Slot 1)
+# 2. Disable IMS/VoLTE across all present SIM slots (default)
 sudo dimsd disable
 
 # 3. Verify IMS is disabled (IMS profile marked DISABLED, bearer DISCONNECTED)
@@ -149,11 +149,14 @@ sudo dimsd status --json
 ---
 
 ### `dimsd disable`
-Disables IMS on the target SIM slot by setting the NVRAM WDS profile to `disabled=yes` and disconnecting any active IMS bearers.
+Disables IMS on the target SIM slot (or all slots by default) by setting the NVRAM WDS profile to `disabled=yes` and disconnecting any active IMS bearers.
 
 ```bash
-# Disable IMS on default slot (Slot 1)
+# Disable IMS across all SIM slots (default)
 sudo dimsd disable
+
+# Disable IMS explicitly on Slot 1
+sudo dimsd disable -s 1
 
 # Disable IMS explicitly on Slot 2
 sudo dimsd disable -s 2
@@ -491,3 +494,4 @@ sudo dimsd status
 
 ### Q5: ModemManager re-indexed from `Modem 0` to `Modem 1` after a SIM swap.
 **Explanation**: `dimsd` implements resilient auto-discovery in `resolve_modem_id()`. When configured with `modem_id = "auto"` (the default), `dimsd` dynamically locates whichever modem index is currently registered with ModemManager, preventing hardcoded index failures.
+

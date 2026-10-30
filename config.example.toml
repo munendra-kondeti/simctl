@@ -8,8 +8,8 @@ device = "auto"
 # Target ModemManager modem index: "auto" for dynamic detection, or explicit index e.g. "0"
 modem_id = "auto"
 
-# Default SIM slot to manage: 1, 2, or "all"
-default_slot = "1"
+# Default SIM slot to manage: "1", "2", or "all" (default: "all")
+default_slot = "all"
 
 # Expected cellular network interface: "auto" (rmnet_ipa0, etc.) or specific interface name
 net_interface = "auto"

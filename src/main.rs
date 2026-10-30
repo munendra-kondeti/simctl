@@ -72,8 +72,7 @@ fn main() -> Result<()> {
 }
 
 fn handle_status(mgr: &ModemManager, config: &Config, cli: &Cli, args: &StatusArgs) -> Result<()> {
-    // For status check, default to All slots to present both SIM 1 & SIM 2 hardware information
-    let slot = args.slot.or(cli.slot).unwrap_or(SlotSelection::All);
+    let slot = config.resolve_slot(args.slot.or(cli.slot));
     let report = mgr.get_status(config, slot);
 
     if cli.json {

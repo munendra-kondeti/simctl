@@ -213,7 +213,63 @@ impl ModemManager {
         }
     }
 
-    /// Disables IMS bearers, profiles, and autoconnect
+    fn disable_ims_profiles_on_active_session(
+        &self,
+        qmi_device: &str,
+        dry_run: bool,
+    ) -> Result<Vec<u32>> {
+        let mut modified = Vec::new();
+        let profiles = self.qmicli.get_wds_profiles(qmi_device)?;
+        for p in &profiles {
+            if p.is_ims && !p.disabled {
+                if dry_run {
+                    info!(
+                        "[DRY RUN] Would disable WDS profile {} (APN: '{}')",
+                        p.index, p.apn
+                    );
+                    modified.push(p.index);
+                } else {
+                    info!("Disabling WDS profile {} (APN: '{}')", p.index, p.apn);
+                    if let Err(e) = self.qmicli.set_profile_disabled(qmi_device, p.index, true) {
+                        warn!("Failed to disable profile {}: {}", p.index, e);
+                    } else {
+                        modified.push(p.index);
+                    }
+                }
+            }
+        }
+        Ok(modified)
+    }
+
+    fn enable_ims_profiles_on_active_session(
+        &self,
+        qmi_device: &str,
+        dry_run: bool,
+    ) -> Result<Vec<u32>> {
+        let mut modified = Vec::new();
+        let profiles = self.qmicli.get_wds_profiles(qmi_device)?;
+        for p in &profiles {
+            if p.is_ims {
+                if dry_run {
+                    info!(
+                        "[DRY RUN] Would enable WDS profile {} (APN: '{}')",
+                        p.index, p.apn
+                    );
+                    modified.push(p.index);
+                } else {
+                    info!("Enabling WDS profile {} (APN: '{}')", p.index, p.apn);
+                    if let Err(e) = self.qmicli.set_profile_disabled(qmi_device, p.index, false) {
+                        warn!("Failed to enable profile {}: {}", p.index, e);
+                    } else {
+                        modified.push(p.index);
+                    }
+                }
+            }
+        }
+        Ok(modified)
+    }
+
+    /// Disables IMS bearers, profiles, and autoconnect across targeted or all present SIM slots
     pub fn disable_ims(
         &self,
         config: &Config,
@@ -226,43 +282,33 @@ impl ModemManager {
         let mut disconnected = Vec::new();
         let mut modified_profiles = Vec::new();
 
-        // 1. Check target slot existence if specific slot requested
-        if let Some(target_slot) = slot_sel.as_u8() {
-            if let Ok(slots) = self.qmicli.get_card_status(&qmi_device) {
-                if let Some(s) = slots.iter().find(|s| s.slot == target_slot) {
-                    if !s.present {
-                        info!(
-                            "Target SIM slot {} is not present, skipping profile modification.",
-                            target_slot
-                        );
+        let slots = self.qmicli.get_card_status(&qmi_device).unwrap_or_default();
+        let current_primary = slots.iter().find(|s| s.is_primary).map(|s| s.slot);
+
+        let target_slot = match slot_sel {
+            SlotSelection::Slot1 => Some(1),
+            SlotSelection::Slot2 => Some(2),
+            SlotSelection::All => None,
+        };
+
+        if let Some(target) = target_slot {
+            if current_primary != Some(target) {
+                if let Some(target_card) = slots.iter().find(|s| s.slot == target) {
+                    if !target_card.present {
+                        info!("Target SIM slot {} is not present, skipping.", target);
+                    } else if let Some(aid) = &target_card.usim_aid {
+                        info!("Activating Slot {} to configure IMS profiles...", target);
+                        self.qmicli
+                            .change_provisioning_session(&qmi_device, target, aid)?;
                     }
                 }
             }
         }
 
-        // 2. Disable WDS 3GPP IMS profile(s) and autoconnect in QMI FIRST
-        // Disabling profile first prevents ModemManager from immediately reconnecting the bearer.
-        let profiles = self.qmicli.get_wds_profiles(&qmi_device)?;
-        for p in &profiles {
-            if p.is_ims && !p.disabled {
-                if dry_run {
-                    info!(
-                        "[DRY RUN] Would disable WDS profile {} (APN: '{}')",
-                        p.index, p.apn
-                    );
-                    modified_profiles.push(p.index);
-                } else {
-                    info!("Disabling WDS profile {} (APN: '{}')", p.index, p.apn);
-                    if let Err(e) = self.qmicli.set_profile_disabled(&qmi_device, p.index, true) {
-                        warn!("Failed to disable profile {}: {}", p.index, e);
-                    } else {
-                        modified_profiles.push(p.index);
-                    }
-                }
-            }
-        }
+        let modified = self.disable_ims_profiles_on_active_session(&qmi_device, dry_run)?;
+        modified_profiles.extend(modified);
 
-        // 3. Disconnect active IMS bearers in ModemManager AFTER profile is disabled
+        // Disconnect active IMS bearers in ModemManager AFTER profile is disabled
         let bearers = self.mmcli.get_bearers(&modem_id)?;
         for b in &bearers {
             if b.is_ims && b.connected {
@@ -302,7 +348,7 @@ impl ModemManager {
         })
     }
 
-    /// Re-enables IMS profiles
+    /// Re-enables IMS profiles across targeted or all present SIM slots
     pub fn enable_ims(
         &self,
         config: &Config,
@@ -312,28 +358,31 @@ impl ModemManager {
         let qmi_device = self.resolve_device(&config.modem.device);
         let mut modified_profiles = Vec::new();
 
-        let profiles = self.qmicli.get_wds_profiles(&qmi_device)?;
-        for p in &profiles {
-            if p.is_ims {
-                if dry_run {
-                    info!(
-                        "[DRY RUN] Would enable WDS profile {} (APN: '{}')",
-                        p.index, p.apn
-                    );
-                    modified_profiles.push(p.index);
-                } else {
-                    info!("Enabling WDS profile {} (APN: '{}')", p.index, p.apn);
-                    if let Err(e) = self
-                        .qmicli
-                        .set_profile_disabled(&qmi_device, p.index, false)
-                    {
-                        warn!("Failed to enable profile {}: {}", p.index, e);
-                    } else {
-                        modified_profiles.push(p.index);
+        let slots = self.qmicli.get_card_status(&qmi_device).unwrap_or_default();
+        let current_primary = slots.iter().find(|s| s.is_primary).map(|s| s.slot);
+
+        let target_slot = match slot_sel {
+            SlotSelection::Slot1 => Some(1),
+            SlotSelection::Slot2 => Some(2),
+            SlotSelection::All => None,
+        };
+
+        if let Some(target) = target_slot {
+            if current_primary != Some(target) {
+                if let Some(target_card) = slots.iter().find(|s| s.slot == target) {
+                    if !target_card.present {
+                        info!("Target SIM slot {} is not present, skipping.", target);
+                    } else if let Some(aid) = &target_card.usim_aid {
+                        info!("Activating Slot {} to configure IMS profiles...", target);
+                        self.qmicli
+                            .change_provisioning_session(&qmi_device, target, aid)?;
                     }
                 }
             }
         }
+
+        let modified = self.enable_ims_profiles_on_active_session(&qmi_device, dry_run)?;
+        modified_profiles.extend(modified);
 
         let slot_label = match slot_sel {
             SlotSelection::Slot1 => "Slot 1".to_string(),
@@ -390,6 +439,16 @@ impl ModemManager {
 
         self.qmicli
             .change_provisioning_session(&qmi_device, target_slot, aid)?;
+
+        // Automatically ensure IMS profiles are disabled on the newly activated slot
+        if let Ok(disabled) = self.disable_ims_profiles_on_active_session(&qmi_device, false) {
+            if !disabled.is_empty() {
+                info!(
+                    "Automatically disabled IMS profiles on newly activated Slot {}: {:?}",
+                    target_slot, disabled
+                );
+            }
+        }
 
         if restart_mm {
             info!("Restarting ModemManager to re-probe active SIM subscription...");

@@ -53,7 +53,7 @@ fn default_auto() -> String {
 }
 
 fn default_slot() -> String {
-    "1".to_string()
+    "all".to_string()
 }
 
 fn default_timeout_secs() -> u64 {
@@ -163,9 +163,9 @@ impl Config {
         }
 
         match self.modem.default_slot.trim().to_lowercase().as_str() {
+            "1" => SlotSelection::Slot1,
             "2" => SlotSelection::Slot2,
-            "all" => SlotSelection::All,
-            _ => SlotSelection::Slot1,
+            _ => SlotSelection::All,
         }
     }
 }
@@ -179,7 +179,7 @@ mod tests {
         let cfg = Config::default();
         assert_eq!(cfg.modem.device, "auto");
         assert_eq!(cfg.modem.modem_id, "auto");
-        assert_eq!(cfg.modem.default_slot, "1");
+        assert_eq!(cfg.modem.default_slot, "all");
         assert_eq!(cfg.daemon.timeout_secs, 30);
         assert_eq!(cfg.daemon.poll_interval_secs, 10);
     }
@@ -187,11 +187,18 @@ mod tests {
     #[test]
     fn test_resolve_slot() {
         let mut cfg = Config::default();
-        assert_eq!(cfg.resolve_slot(None), SlotSelection::Slot1);
+        assert_eq!(cfg.resolve_slot(None), SlotSelection::All);
         assert_eq!(
             cfg.resolve_slot(Some(SlotSelection::Slot2)),
             SlotSelection::Slot2
         );
+        assert_eq!(
+            cfg.resolve_slot(Some(SlotSelection::Slot1)),
+            SlotSelection::Slot1
+        );
+
+        cfg.modem.default_slot = "1".to_string();
+        assert_eq!(cfg.resolve_slot(None), SlotSelection::Slot1);
 
         cfg.modem.default_slot = "2".to_string();
         assert_eq!(cfg.resolve_slot(None), SlotSelection::Slot2);
@@ -206,6 +213,6 @@ mod tests {
         let toml_str = toml::to_string(&cfg).unwrap();
         let deserialized: Config = toml::from_str(&toml_str).unwrap();
         assert_eq!(deserialized.modem.device, "auto");
-        assert_eq!(deserialized.modem.default_slot, "1");
+        assert_eq!(deserialized.modem.default_slot, "all");
     }
 }
