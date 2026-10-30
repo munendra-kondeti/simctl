@@ -38,3 +38,4 @@ All compiler and Clippy pedantic checks were resolved in a continuous audit loop
 - **Format:** `cargo fmt --check` clean.
 - **Lints:** `cargo clippy --all-targets --all-features -- -W clippy::pedantic` passes with **0 warnings**.
 - **Unit Tests:** 8/8 passed.
+

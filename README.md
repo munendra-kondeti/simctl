@@ -2,13 +2,18 @@
 
 `dimsd` is a lightweight, robust system daemon and command-line utility written in Rust for **Nura OS** (postmarketOS / Alpine Linux `aarch64` Qualcomm MSM8953).
 
-It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defaulting to Slot 1, and disables IP Multimedia Subsystem (IMS/VoLTE) bearers and profiles on boot. It also provides a rich CLI to monitor, disable, enable, and verify IMS status at any time.
+It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defaulting to Slot 1, and disables IP Multimedia Subsystem (IMS/VoLTE) bearers and profiles on boot. It also provides a rich CLI to monitor status, switch active SIM data sessions, manage APN profiles, and enable/disable IMS.
+
+> [!TIP]
+> For in-depth tutorials, DSDS hardware architecture explanations, and step-by-step guides, consult the [Comprehensive User Guide](docs/USER_GUIDE.md).
 
 ---
 
 ## Features
 
 - **Dual-SIM Slot Management**: Dynamically queries QMI UIM card status (`Slot [1]` & `Slot [2]`). Defaults to Slot 1 (`-s 1`), with support for Slot 2 (`-s 2`) or all slots (`-s all`).
+- **SIM Session Switching**: Switch the active cellular data provisioning session (`Primary GW`) between Slot 1 and Slot 2 on the fly via `dimsd switch-slot <1|2>`.
+- **WDS 3GPP APN Profile Management**: Create, list, and delete APN profiles directly in modem NVRAM via `dimsd profile add|delete|list`.
 - **Multi-Layer IMS Disabling**:
   1. Identifies and disconnects active ModemManager bearers configured with APN `ims` via native JSON (`mmcli -J`).
   2. Modifies Qualcomm QMI WDS 3GPP profiles (`qmicli -d qrtr://0 --wds-modify-profile="3gpp,<index>,disabled=yes"`).
@@ -34,9 +39,11 @@ It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defa
 dimsd/
 ├── Cargo.toml             # Rust package manifest
 ├── config.example.toml    # Default example configuration
-├── README.md              # Project manual & CLI guide
+├── README.md              # Project manual & CLI overview
 ├── docs/
-│   └── plan.md            # Architecture & implementation plan specification
+│   ├── USER_GUIDE.md      # Comprehensive operator manual & user guide
+│   ├── plan.md            # Architecture & implementation plan specification
+│   └── reviews/           # Rust best-practices audits and verification logs
 ├── scripts/
 │   ├── install.sh         # Installation script (builds/installs binary & systemd service)
 │   └── uninstall.sh       # Uninstallation script (with optional IMS restoration)
@@ -48,7 +55,7 @@ dimsd/
     ├── error.rs           # Thiserror error definitions
     ├── config.rs          # Configuration loader, writer & auto-detection
     └── modem/
-        ├── mod.rs         # Orchestrator for Dual SIM & IMS management
+        ├── mod.rs         # Orchestrator for Dual SIM, APN profiles & IMS management
         ├── types.rs       # Data models for SIM, bearers, profiles & status
         ├── mmcli.rs       # ModemManager wrapper using native JSON (-J)
         └── qmicli.rs      # QMI wrapper with regex/token parsing
@@ -59,29 +66,35 @@ dimsd/
 ## CLI Usage
 
 ```bash
-# Default mode: disables IMS for configured default slot (Slot 1) and exits 0 (for systemd)
-dimsd
-
 # View live status of modem, SIM slots, WDS profiles, and IMS registration
-dimsd status
+sudo dimsd status
 
 # Status in JSON format
-dimsd status --json
+sudo dimsd status --json
 
 # Manually disable IMS on Slot 1 (or Slot 2)
-dimsd disable --slot 1
+sudo dimsd disable -s 1
 
 # Preview disable actions without making changes
-dimsd disable --slot 1 --dry-run
+sudo dimsd disable -s 1 --dry-run
 
 # Re-enable IMS profiles
-dimsd enable --slot 1
+sudo dimsd enable -s 1
+
+# Switch active data SIM provisioning session between slots
+sudo dimsd switch-slot 2
+sudo dimsd switch-slot 1
+
+# List, add, and delete WDS 3GPP APN profiles
+sudo dimsd profile list
+sudo dimsd profile add customapn --pdp-type IPV4V6
+sudo dimsd profile delete 5
 
 # Check hardware topology and sync /etc/dimsd/config.toml
-dimsd check --update
+sudo dimsd check --update
 
 # Run as persistent watchdog daemon checking every 10s
-dimsd daemon --watch --interval 10
+sudo dimsd daemon --watch --interval 10
 ```
 
 ---
