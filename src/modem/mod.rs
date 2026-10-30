@@ -200,9 +200,9 @@ impl ModemManager {
             .unwrap_or_else(|_| Vec::new());
 
         let target_str = match slot_sel {
-            SlotSelection::Slot1 => "Slot 1".to_string(),
-            SlotSelection::Slot2 => "Slot 2".to_string(),
-            SlotSelection::All => "All Slots".to_string(),
+            SlotSelection::Slot1 => "Slot 1 (Single SIM)".to_string(),
+            SlotSelection::Slot2 => "Slot 2 (Single SIM)".to_string(),
+            SlotSelection::All => "All Slots (Dual SIM)".to_string(),
         };
 
         Ok(FullStatusReport {

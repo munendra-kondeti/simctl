@@ -16,6 +16,9 @@ static APP_RE: Lazy<Regex> =
 #[allow(clippy::non_std_lazy_statics)]
 static PIN1_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"PIN1\s+state:\s*'([^']+)'").expect("valid regex"));
+#[allow(clippy::non_std_lazy_statics)]
+static PRIMARY_GW_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"Primary GW:\s*slot '(\d+)'").expect("valid regex"));
 
 #[allow(clippy::non_std_lazy_statics)]
 static PROFILE_START_RE: Lazy<Regex> =
@@ -123,6 +126,15 @@ pub fn parse_uim_card_status(output: &str) -> Result<Vec<SlotCardInfo>> {
     let mut slots = Vec::new();
 
     let lines: Vec<&str> = output.lines().collect();
+    let mut primary_slot: Option<u8> = None;
+    for line in &lines {
+        if let Some(cap) = PRIMARY_GW_RE.captures(line) {
+            if let Some(m) = cap.get(1) {
+                primary_slot = m.as_str().parse::<u8>().ok();
+            }
+        }
+    }
+
     let mut current_slot: Option<u8> = None;
     let mut current_state = String::new();
     let mut has_usim = false;
@@ -133,12 +145,14 @@ pub fn parse_uim_card_status(output: &str) -> Result<Vec<SlotCardInfo>> {
         if let Some(cap) = SLOT_RE.captures(line) {
             if let Some(s) = current_slot {
                 let present = current_state.eq_ignore_ascii_case("present");
+                let is_primary = primary_slot.is_some_and(|p| p == s);
                 slots.push(SlotCardInfo {
                     slot: s,
                     present,
                     state_description: current_state.clone(),
                     has_usim,
                     has_isim,
+                    is_primary,
                     pin1_state,
                 });
             }
@@ -179,12 +193,14 @@ pub fn parse_uim_card_status(output: &str) -> Result<Vec<SlotCardInfo>> {
 
     if let Some(s) = current_slot {
         let present = current_state.eq_ignore_ascii_case("present");
+        let is_primary = primary_slot.is_some_and(|p| p == s);
         slots.push(SlotCardInfo {
             slot: s,
             present,
             state_description: current_state,
             has_usim,
             has_isim,
+            is_primary,
             pin1_state,
         });
     }

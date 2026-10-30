@@ -4,7 +4,7 @@ mod error;
 mod modem;
 
 use clap::Parser;
-use cli::{ActionArgs, CheckArgs, Cli, Commands, DaemonArgs, StatusArgs};
+use cli::{ActionArgs, CheckArgs, Cli, Commands, DaemonArgs, SlotSelection, StatusArgs};
 use config::Config;
 use error::Result;
 use modem::types::{FullStatusReport, OperationResult, SystemHardwareCheck};
@@ -64,7 +64,8 @@ fn main() -> Result<()> {
 }
 
 fn handle_status(mgr: &ModemManager, config: &Config, cli: &Cli, args: &StatusArgs) -> Result<()> {
-    let slot = config.resolve_slot(args.slot.or(cli.slot));
+    // For status check, default to All slots to present both SIM 1 & SIM 2 hardware information
+    let slot = args.slot.or(cli.slot).unwrap_or(SlotSelection::All);
     let report = mgr.get_status(config, slot)?;
 
     if cli.json {
@@ -210,9 +211,23 @@ fn print_status_report(r: &FullStatusReport) {
     } else {
         for s in &r.slots {
             let status_badge = if s.present { "PRESENT" } else { "EMPTY" };
+            let role = if s.is_primary {
+                " [Primary Active]"
+            } else if s.present {
+                " [Secondary]     "
+            } else {
+                "                 "
+            };
+            let cap_desc = if s.has_isim {
+                " - VoLTE / IMS capable (ISIM detected)"
+            } else if s.has_usim {
+                " - Standard USIM"
+            } else {
+                ""
+            };
             println!(
-                "  Slot [{}]: {} (USIM: {}, ISIM: {}) - {}",
-                s.slot, status_badge, s.has_usim, s.has_isim, s.state_description
+                "  Slot [{}]{}: {} (USIM: {}, ISIM: {}) - {}{}",
+                s.slot, role, status_badge, s.has_usim, s.has_isim, s.state_description, cap_desc
             );
         }
     }

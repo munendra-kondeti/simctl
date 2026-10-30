@@ -7,6 +7,8 @@ pub struct SlotCardInfo {
     pub state_description: String,
     pub has_usim: bool,
     pub has_isim: bool,
+    #[serde(default)]
+    pub is_primary: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pin1_state: Option<String>,
 }
