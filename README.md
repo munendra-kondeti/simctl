@@ -51,8 +51,7 @@ simctl/
 │   ├── install.sh         # Installation script (builds/installs binary & systemd service)
 │   └── uninstall.sh       # Uninstallation script (with optional IMS restoration)
 ├── systemd/
-│   ├── simctl.service     # Systemd unit file (alias: dimsd.service)
-│   └── dimsd.service      # Legacy service compatibility unit
+│   └── simctl.service     # Systemd unit file
 └── src/
     ├── main.rs            # Application entrypoint & CLI handlers
     ├── cli.rs             # Clap arguments & subcommands
@@ -203,6 +202,6 @@ sudo sh scripts/uninstall.sh --restore --purge
 
 The service runs on boot after ModemManager and QMI proxy are active:
 ```bash
-sudo systemctl status dimsd.service
+sudo systemctl status simctl.service
 ```
 

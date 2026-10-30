@@ -42,8 +42,6 @@ if [ "$RESTORE" -eq 1 ]; then
     echo "\n${YELLOW}--> Restoring IMS profiles to enabled...${NC}"
     if [ -x /usr/local/bin/simctl ]; then
         /usr/local/bin/simctl enable || true
-    elif [ -x /usr/local/bin/dimsd ]; then
-        /usr/local/bin/dimsd enable || true
     fi
     echo "${GREEN}[OK] IMS profiles restored.${NC}"
 fi
@@ -56,7 +54,7 @@ systemctl disable dimsd.service 2>/dev/null || true
 rm -f /etc/systemd/system/simctl.service /etc/systemd/system/dimsd.service
 systemctl daemon-reload
 
-echo "\n${YELLOW}--> Removing binaries and symlinks...${NC}"
+echo "\n${YELLOW}--> Removing binaries and legacy links...${NC}"
 rm -f /usr/local/bin/simctl /usr/local/bin/dimsd
 
 if [ "$PURGE" -eq 1 ]; then

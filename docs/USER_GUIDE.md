@@ -438,20 +438,21 @@ level = "info"
 
 ## 7. Systemd Service Management
 
-`dimsd` is configured as a systemd unit (`/etc/systemd/system/dimsd.service`):
+`simctl` is configured as a systemd unit (`/etc/systemd/system/simctl.service`):
 
 ```ini
 [Unit]
-Description=Disable IMS Daemon
-After=network.target ModemManager.service qmi-proxy.service
-Wants=ModemManager.service
+Description=Cellular SIM & Modem Management Daemon (simctl)
+Documentation=https://github.com/nura-eco/simctl
+After=ModemManager.service qmi-proxy.service
+Wants=ModemManager.service qmi-proxy.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/dimsd daemon
 RemainAfterExit=yes
-Restart=on-failure
-RestartSec=5s
+ExecStart=/usr/local/bin/simctl disable
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -460,17 +461,17 @@ WantedBy=multi-user.target
 ### Useful Service Commands
 ```bash
 # Check service status
-sudo systemctl status dimsd.service
+sudo systemctl status simctl.service
 
 # View boot logs
-sudo journalctl -u dimsd.service --no-pager
+sudo journalctl -u simctl.service --no-pager
 
 # Restart service (triggers IMS disable routine)
-sudo systemctl restart dimsd.service
+sudo systemctl restart simctl.service
 
 # Enable/disable automatic boot start
-sudo systemctl enable dimsd.service
-sudo systemctl disable dimsd.service
+sudo systemctl enable simctl.service
+sudo systemctl disable simctl.service
 ```
 
 ---

@@ -42,9 +42,7 @@ echo "${GREEN}[OK] Required binaries found (mmcli, qmicli, systemctl).${NC}"
 BINARY_SRC=""
 for p in "$PROJECT_ROOT/target/release/simctl" \
          "$PROJECT_ROOT/target/debug/simctl" \
-         "$PROJECT_ROOT/simctl" \
-         "$PROJECT_ROOT/target/release/dimsd" \
-         "$PROJECT_ROOT/target/debug/dimsd"; do
+         "$PROJECT_ROOT/simctl"; do
     if [ -f "$p" ]; then
         BINARY_SRC="$p"
         break
@@ -66,17 +64,15 @@ fi
 
 echo "\n${YELLOW}--> Step 2: Installing binary to /usr/local/bin/simctl...${NC}"
 install -m 755 "$BINARY_SRC" /usr/local/bin/simctl
-# Backwards compatibility symlink for dimsd
-ln -sf /usr/local/bin/simctl /usr/local/bin/dimsd
-echo "${GREEN}[OK] Binary installed to /usr/local/bin/simctl (symlink /usr/local/bin/dimsd created)${NC}"
+# Clean up any legacy dimsd binary/symlink
+rm -f /usr/local/bin/dimsd
+echo "${GREEN}[OK] Binary installed to /usr/local/bin/simctl${NC}"
 
 echo "\n${YELLOW}--> Step 3: Setting up configuration (/etc/simctl/)...${NC}"
 mkdir -p /etc/simctl /var/lib/simctl
 if [ ! -f /etc/simctl/config.toml ]; then
     if [ -f "$PROJECT_ROOT/config.example.toml" ]; then
         cp "$PROJECT_ROOT/config.example.toml" /etc/simctl/config.toml
-    elif [ -f /etc/dimsd/config.toml ]; then
-        cp /etc/dimsd/config.toml /etc/simctl/config.toml
     else
         cat << 'EOF' > /etc/simctl/config.toml
 [modem]
@@ -100,18 +96,22 @@ else
     echo "${BLUE}[i] Existing configuration found at /etc/simctl/config.toml (preserved).${NC}"
 fi
 
-# Compatibility symlink for /etc/dimsd
-if [ ! -e /etc/dimsd ]; then
-    ln -s /etc/simctl /etc/dimsd
-fi
+# Clean up any legacy /etc/dimsd directory/symlink
+rm -rf /etc/dimsd /var/lib/dimsd
 
 echo "\n${YELLOW}--> Step 4: Installing and activating systemd service...${NC}"
+# Stop and disable any legacy dimsd service
+systemctl stop dimsd.service 2>/dev/null || true
+systemctl disable dimsd.service 2>/dev/null || true
+rm -f /etc/systemd/system/dimsd.service
+
 if [ -f "$PROJECT_ROOT/systemd/simctl.service" ]; then
     cp "$PROJECT_ROOT/systemd/simctl.service" /etc/systemd/system/simctl.service
 else
     cat << 'EOF' > /etc/systemd/system/simctl.service
 [Unit]
 Description=Cellular SIM & Modem Management Daemon (simctl)
+Documentation=https://github.com/nura-eco/simctl
 After=ModemManager.service qmi-proxy.service
 Wants=ModemManager.service qmi-proxy.service
 
@@ -124,13 +124,13 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-Alias=dimsd.service
 EOF
 fi
 
 systemctl daemon-reload
 systemctl enable simctl.service
-echo "${GREEN}[OK] systemd service enabled: simctl.service${NC}"
+systemctl restart simctl.service
+echo "${GREEN}[OK] systemd service enabled and started: simctl.service${NC}"
 
 echo "\n${YELLOW}--> Step 5: Executing initial hardware verification...${NC}"
 /usr/local/bin/simctl check || true

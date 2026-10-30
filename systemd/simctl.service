@@ -13,5 +13,4 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-Alias=dimsd.service
 
