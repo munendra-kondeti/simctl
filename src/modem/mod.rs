@@ -53,10 +53,16 @@ impl ModemManager {
         "qrtr://0".to_string()
     }
 
-    /// Resolves target `ModemManager` modem id ("auto" -> discovered index)
+    /// Resolves target `ModemManager` modem id ("auto" -> discovered index, with auto-fallback)
     pub fn resolve_modem_id(&self, configured: &str) -> Result<String> {
         if configured != "auto" && !configured.is_empty() {
-            return Ok(configured.to_string());
+            if self.mmcli.get_modem_identity(configured).is_ok() {
+                return Ok(configured.to_string());
+            }
+            debug!(
+                "Configured modem_id '{}' not active in ModemManager, falling back to discovery",
+                configured
+            );
         }
 
         self.mmcli.discover_modem_id()

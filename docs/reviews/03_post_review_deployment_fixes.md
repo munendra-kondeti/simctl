@@ -40,3 +40,4 @@ Per deployment guidelines:
 - Debug/dev binary was built first inside `rust:alpine` (aarch64) and tested on the target hardware before any release artifacts were produced.
 - All 8 unit tests passed on host and container.
 - Zero Clippy warnings under strict `-D warnings` and pedantic mode.
+

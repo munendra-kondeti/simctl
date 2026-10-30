@@ -206,7 +206,7 @@ fn print_status_report(r: &FullStatusReport) {
 
     println!("\n--- SIM Slots ---");
     if r.slots.is_empty() {
-        println!("  (No slot information available)");
+        println!("  (QMI query restricted - run with 'sudo dimsd status' for direct SIM hardware queries)");
     } else {
         for s in &r.slots {
             let status_badge = if s.present { "PRESENT" } else { "EMPTY" };
@@ -219,7 +219,7 @@ fn print_status_report(r: &FullStatusReport) {
 
     println!("\n--- WDS 3GPP Profiles (QMI) ---");
     if r.wds_profiles.is_empty() {
-        println!("  (No profiles retrieved)");
+        println!("  (QMI query restricted - run with 'sudo dimsd status' for modem profile details)");
     } else {
         for p in &r.wds_profiles {
             let ims_tag = if p.is_ims { " [IMS PROFILE]" } else { "" };
@@ -231,16 +231,17 @@ fn print_status_report(r: &FullStatusReport) {
         }
     }
 
-    println!("\n--- Active ModemManager Bearers ---");
+    println!("\n--- ModemManager Bearers ---");
     if r.active_bearers.is_empty() {
-        println!("  (No active bearers)");
+        println!("  (No bearers tracked)");
     } else {
         for b in &r.active_bearers {
             let ims_tag = if b.is_ims { " [IMS BEARER]" } else { "" };
             let iface = b.interface.as_deref().unwrap_or("none");
+            let state = if b.connected { "CONNECTED" } else { "DISCONNECTED" };
             println!(
-                "  Bearer {} | APN: '{:<10}' | Dev: {:<10} | Connected: {}{}",
-                b.id, b.apn, iface, b.connected, ims_tag
+                "  Bearer {} | APN: '{:<10}' | Interface: {:<8} | State: {}{}",
+                b.id, b.apn, iface, state, ims_tag
             );
         }
     }
@@ -255,7 +256,13 @@ fn print_status_report(r: &FullStatusReport) {
 
     if !r.ims_services.is_empty() {
         for svc in &r.ims_services {
-            println!("  {:<18} : {}", svc.service_name, svc.status);
+            let note = match svc.service_name.as_str() {
+                "Voice service" if svc.status == "unavailable" => " (VoLTE disabled)",
+                "SMS service" if svc.status == "unavailable" => " (SMSoIP disabled)",
+                "Video Telephony service" if svc.status == "unavailable" => " (ViLTE disabled)",
+                _ => "",
+            };
+            println!("  {:<24} : {}{}", svc.service_name, svc.status, note);
         }
     }
     println!("===========================");
