@@ -1,9 +1,9 @@
 [package]
-name = "dimsd"
+name = "simctl"
 version = "0.1.0"
 edition = "2021"
 authors = ["roy <roy@nura.eco>"]
-description = "Disable IMS Daemon & CLI for Nura OS"
+description = "Lightweight, robust cellular SIM and modem management CLI and daemon for Qualcomm-based Nura OS"
 license = "MIT OR Apache-2.0"
 
 [dependencies]

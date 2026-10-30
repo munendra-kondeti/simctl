@@ -26,6 +26,14 @@ pub struct SwitchSlotResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchSlotInspection {
+    pub current_primary: Option<u8>,
+    pub slots: Vec<SlotCardInfo>,
+    pub suggested_slot: Option<u8>,
+    pub suggested_command: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileOperationResult {
     pub action: String,
     pub index: Option<u32>,

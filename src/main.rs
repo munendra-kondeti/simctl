@@ -11,8 +11,8 @@ use cli::{
 use config::Config;
 use error::Result;
 use modem::types::{
-    FullStatusReport, OperationResult, ProfileOperationResult, SwitchSlotResult,
-    SystemHardwareCheck, WdsProfile,
+    FullStatusReport, OperationResult, ProfileOperationResult, SwitchSlotInspection,
+    SwitchSlotResult, SystemHardwareCheck, WdsProfile,
 };
 use modem::ModemManager;
 use std::thread::sleep;
@@ -116,15 +116,27 @@ fn handle_switch_slot(
     cli: &Cli,
     args: &SwitchSlotArgs,
 ) -> Result<()> {
-    let res = mgr.switch_slot(config, args.target_slot, !args.no_restart_mm)?;
+    if let Some(target_slot) = args.target_slot {
+        let res = mgr.switch_slot(config, target_slot, !args.no_restart_mm)?;
 
-    if cli.json {
-        println!("{}", serde_json::to_string_pretty(&res)?);
-        return Ok(());
+        if cli.json {
+            println!("{}", serde_json::to_string_pretty(&res)?);
+            return Ok(());
+        }
+
+        print_switch_slot_result(&res);
+        Ok(())
+    } else {
+        let inspection = mgr.inspect_slots_for_switch(config)?;
+
+        if cli.json {
+            println!("{}", serde_json::to_string_pretty(&inspection)?);
+            return Ok(());
+        }
+
+        print_switch_slot_inspection(&inspection);
+        Ok(())
     }
-
-    print_switch_slot_result(&res);
-    Ok(())
 }
 
 fn handle_profile(
@@ -203,7 +215,7 @@ fn handle_daemon(mgr: &ModemManager, config: &Config, cli: &Cli, args: &DaemonAr
         .unwrap_or_else(|_| "0".to_string());
 
     info!(
-        "dimsd daemon starting (waiting up to {}s for modem readiness)...",
+        "simctl daemon starting (waiting up to {}s for modem readiness)...",
         config.daemon.timeout_secs
     );
 
@@ -234,7 +246,7 @@ fn handle_default_boot(mgr: &ModemManager, config: &Config, cli: &Cli) -> Result
         .unwrap_or_else(|_| "0".to_string());
 
     info!(
-        "dimsd boot execution (modem: {}, qmi: {}, slot: {:?})",
+        "simctl boot execution (modem: {}, qmi: {}, slot: {:?})",
         modem_id, qmi_dev, slot
     );
 
@@ -251,7 +263,7 @@ fn handle_default_boot(mgr: &ModemManager, config: &Config, cli: &Cli) -> Result
 }
 
 fn print_status_report(r: &FullStatusReport) {
-    println!("=== dimsd Status Report ===");
+    println!("=== simctl Status Report ===");
     println!("Target Selection : {}", r.target_slot);
     println!("QMI Device       : {}", r.qmi_device);
 
@@ -267,7 +279,7 @@ fn print_status_report(r: &FullStatusReport) {
 
     println!("\n--- SIM Slots ---");
     if r.slots.is_empty() {
-        println!("  (QMI query restricted - run with 'sudo dimsd status' for direct SIM hardware queries)");
+        println!("  (QMI query restricted - run with 'sudo simctl status' for direct SIM hardware queries)");
     } else {
         for s in &r.slots {
             let status_badge = if s.present { "PRESENT" } else { "EMPTY" };
@@ -386,7 +398,7 @@ fn print_operation_result(res: &OperationResult) {
 }
 
 fn print_check_report(c: &SystemHardwareCheck, updated: bool) {
-    println!("=== dimsd System Check & Verification ===");
+    println!("=== simctl System Check & Verification ===");
     println!("Config File Path     : {}", c.config_path);
     println!("QMI Device Resolved  : {}", c.qmi_device_resolved);
     println!(
@@ -428,9 +440,45 @@ fn print_check_report(c: &SystemHardwareCheck, updated: bool) {
     } else if c.config_matches_hardware {
         println!("\n[OK] Config perfectly matches live system hardware.");
     } else {
-        println!("\n[!] Configuration differs from detected hardware. Run 'dimsd check --update' to sync.");
+        println!("\n[!] Configuration differs from detected hardware. Run 'simctl check --update' to sync.");
     }
     println!("=========================================");
+}
+
+fn print_switch_slot_inspection(insp: &SwitchSlotInspection) {
+    println!("=== SIM Slots & Switching Status ===");
+    if insp.slots.is_empty() {
+        println!("  (No SIM slots detected or QMI query restricted - run with 'sudo')");
+    } else {
+        for s in &insp.slots {
+            let role = if s.is_primary {
+                " [Primary Active]"
+            } else if s.present {
+                " [Secondary]     "
+            } else {
+                "                 "
+            };
+            let status_badge = if s.present { "PRESENT" } else { "EMPTY  " };
+            println!(
+                "  Slot [{}] {}: {} (USIM: {}, ISIM: {}) - {}",
+                s.slot, role, status_badge, s.has_usim, s.has_isim, s.state_description
+            );
+        }
+    }
+
+    println!();
+    match insp.suggested_slot {
+        Some(slot) => {
+            println!("Target slot available for switching: Slot {slot}");
+            println!("Suggested command:");
+            println!("  simctl switch-slot {slot}");
+            println!("\n(Add '--no-restart-mm' for an instantaneous switch without restarting ModemManager)");
+        }
+        None => {
+            println!("No alternate SIM slot is currently present or available for switching.");
+        }
+    }
+    println!("=====================================");
 }
 
 fn print_switch_slot_result(res: &SwitchSlotResult) {

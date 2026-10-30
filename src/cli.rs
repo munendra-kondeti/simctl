@@ -3,18 +3,18 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "dimsd",
+    name = "simctl",
     author = "roy <roy@nura.eco>",
     version,
-    about = "Disable IMS Daemon & CLI for Nura OS",
-    long_about = "Lightweight, robust daemon and CLI tool to disable and manage IP Multimedia Subsystem (IMS/VoLTE) across dual SIM slots on Qualcomm-based Nura OS."
+    about = "Cellular SIM and modem management CLI and daemon for Nura OS",
+    long_about = "Lightweight, robust CLI utility and system daemon to manage dual SIM slots, switch provisioning sessions, manage APN profiles, and control IMS/VoLTE on Qualcomm-based Nura OS."
 )]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
     /// Path to config file
-    #[arg(short, long, global = true, default_value = "/etc/dimsd/config.toml")]
+    #[arg(short, long, global = true, default_value = "/etc/simctl/config.toml")]
     pub config: PathBuf,
 
     /// Target QMI device (e.g. `<qrtr://0>`, `/dev/cdc-wdm0`, or `auto`)
@@ -63,7 +63,7 @@ pub enum Commands {
     /// Re-enable IMS profiles and autoconnect for selected slot
     Enable(ActionArgs),
 
-    /// Switch active SIM provisioning session to a target slot (1 or 2)
+    /// Switch active SIM provisioning session (1 or 2), or inspect slots if omitted
     #[command(alias = "switch-sim")]
     SwitchSlot(SwitchSlotArgs),
 
@@ -80,9 +80,9 @@ pub enum Commands {
 
 #[derive(Args, Debug, Clone)]
 pub struct SwitchSlotArgs {
-    /// Target SIM slot number (1 or 2)
+    /// Target SIM slot number (1 or 2). If omitted, displays current slots and suggests the alternate slot
     #[arg(value_name = "SLOT", value_parser = clap::value_parser!(u8).range(1..=2))]
-    pub target_slot: u8,
+    pub target_slot: Option<u8>,
 
     /// Do not restart `ModemManager` after switching
     #[arg(long)]

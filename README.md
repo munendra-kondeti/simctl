@@ -1,8 +1,8 @@
-# dimsd - Disable IMS Daemon & CLI
+# simctl - Cellular SIM & Modem Management Daemon & CLI
 
-`dimsd` is a lightweight, robust system daemon and command-line utility written in Rust for **Nura OS** (postmarketOS / Alpine Linux `aarch64` Qualcomm MSM8953).
+`simctl` (formerly `dimsd`) is an enterprise-grade system daemon and command-line management utility written in Rust for **Nura OS** (postmarketOS / Alpine Linux `aarch64` Qualcomm Snapdragon MSM8953).
 
-It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defaulting to Slot 1, and disables IP Multimedia Subsystem (IMS/VoLTE) bearers and profiles on boot. It also provides a rich CLI to monitor status, switch active SIM data sessions, manage APN profiles, and enable/disable IMS.
+It provides complete management of **Dual SIM slots** (Slot 1 & Slot 2), dynamic **provisioning session switching**, **WDS 3GPP APN profile management**, and multi-layer **IMS/VoLTE control** across Qualcomm QMI NVRAM and ModemManager.
 
 > [!TIP]
 > For in-depth tutorials, DSDS hardware architecture explanations, and step-by-step guides, consult the [Comprehensive User Guide](docs/USER_GUIDE.md).
@@ -11,9 +11,12 @@ It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defa
 
 ## Features
 
-- **Dual-SIM Slot Management**: Dynamically queries QMI UIM card status (`Slot [1]` & `Slot [2]`). Defaults to Slot 1 (`-s 1`), with support for Slot 2 (`-s 2`) or all slots (`-s all`).
-- **SIM Session Switching**: Switch the active cellular data provisioning session (`Primary GW`) between Slot 1 and Slot 2 on the fly via `dimsd switch-slot <1|2>`.
-- **WDS 3GPP APN Profile Management**: Create, list, and delete APN profiles directly in modem NVRAM via `dimsd profile add|delete|list`.
+- **Dual-SIM Slot Management**: Dynamically queries QMI UIM card status (`Slot [1]` & `Slot [2]`). Defaults to all slots (`-s all`), with support for specific slot targeting (`-s 1` or `-s 2`).
+- **SIM Session Inspection & Switching**:
+  - Run `simctl switch-slot` without arguments to inspect active/secondary slots and get an immediate command suggestion.
+  - Run `simctl switch-slot <1|2>` to switch the active cellular data provisioning session (`Primary GW`).
+  - Automatically disables IMS on the newly activated slot to maintain complete privacy and radio efficiency.
+- **WDS 3GPP APN Profile Management**: Create, list, and delete APN profiles directly in modem NVRAM via `simctl profile add|delete|list`.
 - **Multi-Layer IMS Disabling**:
   1. Identifies and disconnects active ModemManager bearers configured with APN `ims` via native JSON (`mmcli -J`).
   2. Modifies Qualcomm QMI WDS 3GPP profiles (`qmicli -d qrtr://0 --wds-modify-profile="3gpp,<index>,disabled=yes"`).
@@ -21,12 +24,12 @@ It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defa
   4. Verifies de-registration via QMI IMSA status.
 - **Dynamic Port & Hardware Discovery**:
   - Dynamically discovers active ModemManager indices (`Modem/0`, `Modem/1`) and QRTR endpoints (`qrtr://0`) on every run.
-  - Built-in `dimsd check --update` command to verify live hardware and atomically sync `/etc/dimsd/config.toml`.
+  - Built-in `simctl check --update` command to verify live hardware and atomically sync `/etc/simctl/config.toml`.
 - **Systemd Boot Integration**:
   - Runs on boot after `ModemManager.service` and `qmi-proxy.service`.
   - Implements an intelligent retry loop (`timeout_secs = 30`) to eliminate cold-boot race conditions while SIM cards initialize.
 - **Safe State Rollback**:
-  - Saves modified profile state to `/var/lib/dimsd/state.json`.
+  - Saves modified profile state to `/var/lib/simctl/state.json`.
   - Uninstaller includes `--restore` to re-enable IMS profiles to their default state.
 - **Native JSON Support**:
   - All status and action commands support `--json` for automation and script integration.
@@ -36,7 +39,7 @@ It detects available SIM cards across **Dual SIM slots** (Slot 1 & Slot 2), defa
 ## Directory Structure
 
 ```text
-dimsd/
+simctl/
 ├── Cargo.toml             # Rust package manifest
 ├── config.example.toml    # Default example configuration
 ├── README.md              # Project manual & CLI overview
@@ -48,7 +51,8 @@ dimsd/
 │   ├── install.sh         # Installation script (builds/installs binary & systemd service)
 │   └── uninstall.sh       # Uninstallation script (with optional IMS restoration)
 ├── systemd/
-│   └── dimsd.service      # Systemd unit file
+│   ├── simctl.service     # Systemd unit file (alias: dimsd.service)
+│   └── dimsd.service      # Legacy service compatibility unit
 └── src/
     ├── main.rs            # Application entrypoint & CLI handlers
     ├── cli.rs             # Clap arguments & subcommands
@@ -58,6 +62,51 @@ dimsd/
         ├── mod.rs         # Orchestrator for Dual SIM, APN profiles & IMS management
         ├── types.rs       # Data models for SIM, bearers, profiles & status
         ├── mmcli.rs       # ModemManager wrapper using native JSON (-J)
+        └── qmicli.rs      # QMI wrapper with regex/token parsing
+```
+
+---
+
+## CLI Usage
+
+```bash
+# View live status of modem, SIM slots, WDS profiles, and IMS registration (defaults to all slots)
+sudo simctl status
+
+# Status in JSON format
+sudo simctl status --json
+
+# Inspect SIM slots and get immediate switch recommendation
+sudo simctl switch-slot
+
+# Switch active data SIM provisioning session between slots
+sudo simctl switch-slot 2
+sudo simctl switch-slot 1
+
+# Manually disable IMS across all SIM slots (default)
+sudo simctl disable
+
+# Target a specific slot
+sudo simctl disable -s 1
+sudo simctl disable -s 2
+
+# Preview disable actions without making changes
+sudo simctl disable --dry-run
+
+# Re-enable IMS profiles
+sudo simctl enable
+
+# List, add, and delete WDS 3GPP APN profiles
+sudo simctl profile list
+sudo simctl profile add customapn --pdp-type IPV4V6
+sudo simctl profile delete 5
+
+# Check hardware topology and sync /etc/simctl/config.toml
+sudo simctl check --update
+
+# Run as persistent watchdog daemon checking every 10s
+sudo simctl daemon --watch --interval 10
+```
         └── qmicli.rs      # QMI wrapper with regex/token parsing
 ```
 

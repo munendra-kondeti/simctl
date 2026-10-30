@@ -13,8 +13,8 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 use types::{
-    FullStatusReport, OperationResult, ProfileOperationResult, SwitchSlotResult,
-    SystemHardwareCheck,
+    FullStatusReport, OperationResult, ProfileOperationResult, SwitchSlotInspection,
+    SwitchSlotResult, SystemHardwareCheck,
 };
 
 pub struct ModemManager {
@@ -464,6 +464,27 @@ impl ModemManager {
             message: format!(
                 "Successfully switched active SIM provisioning session to Slot {target_slot}"
             ),
+        })
+    }
+
+    /// Inspects available SIM slots and calculates switch suggestions
+    pub fn inspect_slots_for_switch(&self, config: &Config) -> Result<SwitchSlotInspection> {
+        let qmi_device = self.resolve_device(&config.modem.device);
+        let slots = self.qmicli.get_card_status(&qmi_device)?;
+        let current_primary = slots.iter().find(|s| s.is_primary).map(|s| s.slot);
+
+        let suggested_slot = slots
+            .iter()
+            .find(|s| s.present && !s.is_primary)
+            .map(|s| s.slot);
+
+        let suggested_command = suggested_slot.map(|slot| format!("simctl switch-slot {slot}"));
+
+        Ok(SwitchSlotInspection {
+            current_primary,
+            slots,
+            suggested_slot,
+            suggested_command,
         })
     }
 

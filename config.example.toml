@@ -1,5 +1,5 @@
-# /etc/dimsd/config.toml
-# Configuration file for dimsd (Disable IMS Daemon)
+# /etc/simctl/config.toml (legacy fallback: /etc/dimsd/config.toml)
+# Configuration file for simctl (Cellular SIM & Modem Manager)
 
 [modem]
 # Target QMI device: "auto" for dynamic detection (qrtr://0, /dev/cdc-wdm0), or explicit path

@@ -1,0 +1,16 @@
+[Unit]
+Description=Cellular SIM & Modem Management Daemon (simctl)
+Documentation=https://github.com/nura-eco/simctl
+After=ModemManager.service qmi-proxy.service
+Wants=ModemManager.service qmi-proxy.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/simctl disable
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+Alias=dimsd.service

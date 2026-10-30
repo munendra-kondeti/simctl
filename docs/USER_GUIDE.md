@@ -1,6 +1,6 @@
-# `dimsd` User Guide & Operator Manual
+# `simctl` User Guide & Operator Manual
 
-`dimsd` (**Disable IMS Daemon & CLI Utility**) is an enterprise-grade system daemon and command-line management tool built in Rust for **Nura OS** (postmarketOS / Alpine Linux on Qualcomm Snapdragon MSM8953 / `aarch64`).
+`simctl` (formerly `dimsd`, preserved via `/usr/local/bin/dimsd` symlink) is an enterprise-grade cellular modem and SIM management utility built in Rust for **Nura OS** (postmarketOS / Alpine Linux on Qualcomm Snapdragon MSM8953 / `aarch64`).
 
 This guide covers architecture, command syntax, step-by-step practical workflows, configuration options, systemd service management, and troubleshooting.
 
@@ -15,20 +15,19 @@ This guide covers architecture, command syntax, step-by-step practical workflows
 2. [Prerequisites & Privilege Requirements](#2-prerequisites--privilege-requirements)
 3. [Quick Start](#3-quick-start)
 4. [CLI Command Reference](#4-cli-command-reference)
-   - [`dimsd status` (Check System & SIM State)](#dimsd-status)
-   - [`dimsd disable` (Disable IMS/VoLTE)](#dimsd-disable)
-   - [`dimsd enable` (Re-enable IMS/VoLTE)](#dimsd-enable)
-   - [`dimsd switch-slot` (Switch Primary Data SIM)](#dimsd-switch-slot)
-   - [`dimsd profile` (WDS APN Management)](#dimsd-profile)
-   - [`dimsd check` (Hardware & Port Sync)](#dimsd-check)
-   - [`dimsd daemon` (Boot & Watchdog Mode)](#dimsd-daemon)
+   - [`simctl status` (Check System & SIM State)](#simctl-status)
+   - [`simctl switch-slot` (Inspect Slots & Switch Primary Data SIM)](#simctl-switch-slot)
+   - [`simctl disable` (Disable IMS/VoLTE)](#simctl-disable)
+   - [`simctl enable` (Re-enable IMS/VoLTE)](#simctl-enable)
+   - [`simctl profile` (WDS APN Management)](#simctl-profile)
+   - [`simctl check` (Hardware & Port Sync)](#simctl-check)
+   - [`simctl daemon` (Boot & Watchdog Mode)](#simctl-daemon)
 5. [Common Practical Workflows](#5-common-practical-workflows)
-   - [Workflow A: Check Modem & Both SIM Slots](#workflow-a-check-modem--both-sim-slots)
-   - [Workflow B: Disable IMS on Active Slot 1](#workflow-b-disable-ims-on-active-slot-1)
-   - [Workflow C: Switch Primary Data to Slot 2 and Disable IMS](#workflow-c-switch-primary-data-to-slot-2-and-disable-ims)
-   - [Workflow D: Create, Verify, and Delete Custom APNs](#workflow-d-create-verify-and-delete-custom-apns)
-   - [Workflow E: Scripting with JSON Output](#workflow-e-scripting-with-json-output)
-6. [Configuration File Reference (`/etc/dimsd/config.toml`)](#6-configuration-file-reference-etcdimsdconfigtoml)
+   - [Workflow A: Inspect Slots and Switch Primary SIM](#workflow-a-inspect-slots-and-switch-primary-sim)
+   - [Workflow B: Disable IMS across All SIMs](#workflow-b-disable-ims-across-all-sims)
+   - [Workflow C: Create, Verify, and Delete Custom APNs](#workflow-c-create-verify-and-delete-custom-apns)
+   - [Workflow D: Scripting with JSON Output](#workflow-d-scripting-with-json-output)
+6. [Configuration File Reference (`/etc/simctl/config.toml`)](#6-configuration-file-reference-etcsimctlconfigtoml)
 7. [Systemd Service Management](#7-systemd-service-management)
 8. [Troubleshooting & Frequently Asked Questions](#8-troubleshooting--frequently-asked-questions)
 
@@ -45,7 +44,7 @@ On specialized Linux distributions such as Nura OS, this automatic registration 
 - **Carrier Profile Clashes**: When roaming or using IoT/data-only SIMs, failed IMS registrations can trigger carrier throttling or connection instability.
 - **Security & Privacy Considerations**: IMS profiles transmit SIP identity data across background radio channels.
 
-`dimsd` cleanly disables the IMS subsystem at the hardware NVRAM profile layer while **preserving general packet data connectivity** (`internet`, `jionet`, etc.).
+`simctl` cleanly disables the IMS subsystem at the hardware NVRAM profile layer while **preserving general packet data connectivity** (`internet`, `jionet`, etc.).
 
 ### Dual SIM Dual Standby (DSDS) & Provisioning Sessions
 The Qualcomm MSM8953 modem operates in **Dual SIM Dual Standby (DSDS)**:
@@ -71,18 +70,18 @@ flowchart TD
     end
 
     S1 -.->|Default Active| PGW
-    S2 -.->|Switched via dimsd switch-slot 2| PGW
+    S2 -.->|Switched via simctl switch-slot 2| PGW
     PGW --> DSDS --> RF
 ```
 
 ### Dual-Layer Modem Architecture (QMI + ModemManager)
-`dimsd` interacts with the modem through two coordinated software layers:
+`simctl` interacts with the modem through two coordinated software layers:
 1. **Qualcomm QMI Subsystem (`qrtr://0` / `qmicli`)**:
    - Manages card-level states, USIM/ISIM Application IDs (AIDs), and WDS 3GPP APN profile registers directly in modem non-volatile memory (NVRAM).
 2. **ModemManager D-Bus Layer (`mmcli`)**:
    - Manages high-level cellular connections, interface state machines (`rmnet_ipa0`, `qmapmux0.X`), and active bearer teardown.
 
-To eliminate race conditions, `dimsd` enforces a strict sequence:
+To eliminate race conditions, `simctl` enforces a strict sequence:
 1. Disable the WDS 3GPP profile in QMI NVRAM (`disabled=yes`).
 2. Disconnect any active ModemManager bearer for APN `ims`.
 3. If ModemManager attempts an automatic reconnect, the baseband immediately rejects it (`pdn-call-throttled`), permanently terminating IMS registration.
@@ -97,7 +96,7 @@ To eliminate race conditions, `dimsd` enforces a strict sequence:
 
 > [!IMPORTANT]
 > **Root Privileges (`sudo`)**:
-> Access to the QMI socket router (`qrtr://0`) and `qmi-proxy` requires root permissions. Always run `dimsd` using `sudo` (e.g. `sudo dimsd status`, `sudo dimsd disable`). Running without `sudo` will cause QMI commands to fail with `Client group not allowed: Not enough privileges`.
+> Access to the QMI socket router (`qrtr://0`) and `qmi-proxy` requires root permissions. Always run `simctl` using `sudo` (e.g. `sudo simctl status`, `sudo simctl disable`). Running without `sudo` will cause QMI commands to fail with `Client group not allowed: Not enough privileges`.
 
 ---
 
@@ -105,19 +104,19 @@ To eliminate race conditions, `dimsd` enforces a strict sequence:
 
 ```bash
 # 1. View full status of both SIM slots, APN profiles, and bearers
-sudo dimsd status
+sudo simctl status
 
-# 2. Disable IMS/VoLTE across all present SIM slots (default)
-sudo dimsd disable
+# 2. Inspect available slots and view switch suggestions
+sudo simctl switch-slot
 
-# 3. Verify IMS is disabled (IMS profile marked DISABLED, bearer DISCONNECTED)
-sudo dimsd status
+# 3. Switch mobile data to SIM Slot 2 (auto-disables IMS on newly active slot)
+sudo simctl switch-slot 2
 
-# 4. Switch mobile data to SIM Slot 2
-sudo dimsd switch-slot 2
+# 4. Switch mobile data back to SIM Slot 1
+sudo simctl switch-slot 1
 
-# 5. Switch mobile data back to SIM Slot 1
-sudo dimsd switch-slot 1
+# 5. Disable IMS/VoLTE across all present SIM slots (default)
+sudo simctl disable
 ```
 
 ---
@@ -180,22 +179,33 @@ sudo dimsd enable -s 2
 
 ---
 
-### `dimsd switch-slot`
-Switches the active cellular data provisioning session (`Primary GW`) to the target slot.
+### `simctl switch-slot`
+Inspects SIM slots or switches the active cellular data provisioning session (`Primary GW`) to the target slot.
 
 ```bash
-# Syntax
-sudo dimsd switch-slot <1|2> [OPTIONS]
-# Alias: switch-sim
-sudo dimsd switch-sim <1|2>
+# 1. Inspection Mode: Displays available slots and suggests the next switch target
+sudo simctl switch-slot
+
+# 2. Execution Mode: Switches active data session to Slot 2 (alias: switch-sim)
+sudo simctl switch-slot 2
+sudo simctl switch-sim 2
+
+# Instantaneous switch without restarting ModemManager
+sudo simctl switch-slot 2 --no-restart-mm
 ```
 
-**Options**:
-- `--no-restart-mm`: Switches the QMI session without restarting the `ModemManager` daemon. Recommended for quick switches where ModemManager dynamically handles the slot event.
+**Inspection Output Example**:
+```console
+=== SIM Slots & Switching Status ===
+  Slot [1]  [Primary Active]: PRESENT (USIM: true, ISIM: true) - present
+  Slot [2]  [Secondary]     : PRESENT (USIM: true, ISIM: false) - present
 
-**Example**:
-```bash
-sudo dimsd switch-slot 2 --no-restart-mm
+Target slot available for switching: Slot 2
+Suggested command:
+  simctl switch-slot 2
+
+(Add '--no-restart-mm' for an instantaneous switch without restarting ModemManager)
+=====================================
 ```
 
 ---

@@ -1,5 +1,5 @@
 #!/bin/sh
-# dimsd - Disable IMS Daemon & CLI Installation Script for Nura OS
+# simctl - Cellular SIM & Modem Management Daemon & CLI Installation Script for Nura OS
 set -e
 
 RED='\033[0;31m'
@@ -9,7 +9,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo "${BLUE}======================================================${NC}"
-echo "${BLUE}    dimsd (Disable IMS Daemon) - Installation Script    ${NC}"
+echo "${BLUE}    simctl (Cellular SIM & Modem Manager) - Install   ${NC}"
 echo "${BLUE}======================================================${NC}"
 
 # Check root privileges
@@ -40,40 +40,49 @@ echo "${GREEN}[OK] Required binaries found (mmcli, qmicli, systemctl).${NC}"
 
 # Locate compiled binary
 BINARY_SRC=""
-if [ -f "$PROJECT_ROOT/target/release/dimsd" ]; then
-    BINARY_SRC="$PROJECT_ROOT/target/release/dimsd"
-elif [ -f "$PROJECT_ROOT/target/debug/dimsd" ]; then
-    BINARY_SRC="$PROJECT_ROOT/target/debug/dimsd"
-elif [ -f "$PROJECT_ROOT/dimsd" ]; then
-    BINARY_SRC="$PROJECT_ROOT/dimsd"
-else
+for p in "$PROJECT_ROOT/target/release/simctl" \
+         "$PROJECT_ROOT/target/debug/simctl" \
+         "$PROJECT_ROOT/simctl" \
+         "$PROJECT_ROOT/target/release/dimsd" \
+         "$PROJECT_ROOT/target/debug/dimsd"; do
+    if [ -f "$p" ]; then
+        BINARY_SRC="$p"
+        break
+    fi
+done
+
+if [ -z "$BINARY_SRC" ]; then
     echo "${YELLOW}[!] Compiled binary not found in project root or target directories.${NC}"
     if command -v cargo >/dev/null 2>&1; then
         echo "Building debug binary via cargo..."
         (cd "$PROJECT_ROOT" && cargo build)
-        BINARY_SRC="$PROJECT_ROOT/target/debug/dimsd"
+        BINARY_SRC="$PROJECT_ROOT/target/debug/simctl"
     else
         echo "${RED}[ERROR] Neither pre-compiled binary nor cargo was found.${NC}"
-        echo "Please place the compiled 'dimsd' binary in $PROJECT_ROOT or install cargo."
+        echo "Please place the compiled 'simctl' binary in $PROJECT_ROOT or install cargo."
         exit 1
     fi
 fi
 
-echo "\n${YELLOW}--> Step 2: Installing binary to /usr/local/bin/dimsd...${NC}"
-install -m 755 "$BINARY_SRC" /usr/local/bin/dimsd
-echo "${GREEN}[OK] Binary installed to /usr/local/bin/dimsd${NC}"
+echo "\n${YELLOW}--> Step 2: Installing binary to /usr/local/bin/simctl...${NC}"
+install -m 755 "$BINARY_SRC" /usr/local/bin/simctl
+# Backwards compatibility symlink for dimsd
+ln -sf /usr/local/bin/simctl /usr/local/bin/dimsd
+echo "${GREEN}[OK] Binary installed to /usr/local/bin/simctl (symlink /usr/local/bin/dimsd created)${NC}"
 
-echo "\n${YELLOW}--> Step 3: Setting up configuration (/etc/dimsd/)...${NC}"
-mkdir -p /etc/dimsd /var/lib/dimsd
-if [ ! -f /etc/dimsd/config.toml ]; then
+echo "\n${YELLOW}--> Step 3: Setting up configuration (/etc/simctl/)...${NC}"
+mkdir -p /etc/simctl /var/lib/simctl
+if [ ! -f /etc/simctl/config.toml ]; then
     if [ -f "$PROJECT_ROOT/config.example.toml" ]; then
-        cp "$PROJECT_ROOT/config.example.toml" /etc/dimsd/config.toml
+        cp "$PROJECT_ROOT/config.example.toml" /etc/simctl/config.toml
+    elif [ -f /etc/dimsd/config.toml ]; then
+        cp /etc/dimsd/config.toml /etc/simctl/config.toml
     else
-        cat << 'EOF' > /etc/dimsd/config.toml
+        cat << 'EOF' > /etc/simctl/config.toml
 [modem]
 device = "auto"
 modem_id = "auto"
-default_slot = "1"
+default_slot = "all"
 net_interface = "auto"
 
 [daemon]
@@ -85,53 +94,55 @@ auto_sync_config = true
 level = "info"
 EOF
     fi
-    chmod 644 /etc/dimsd/config.toml
-    echo "${GREEN}[OK] Default configuration installed at /etc/dimsd/config.toml${NC}"
+    chmod 644 /etc/simctl/config.toml
+    echo "${GREEN}[OK] Configuration installed at /etc/simctl/config.toml${NC}"
 else
-    echo "${BLUE}[i] Existing configuration found at /etc/dimsd/config.toml (preserved).${NC}"
+    echo "${BLUE}[i] Existing configuration found at /etc/simctl/config.toml (preserved).${NC}"
+fi
+
+# Compatibility symlink for /etc/dimsd
+if [ ! -e /etc/dimsd ]; then
+    ln -s /etc/simctl /etc/dimsd
 fi
 
 echo "\n${YELLOW}--> Step 4: Installing and activating systemd service...${NC}"
-if [ -f "$PROJECT_ROOT/systemd/dimsd.service" ]; then
-    cp "$PROJECT_ROOT/systemd/dimsd.service" /etc/systemd/system/dimsd.service
+if [ -f "$PROJECT_ROOT/systemd/simctl.service" ]; then
+    cp "$PROJECT_ROOT/systemd/simctl.service" /etc/systemd/system/simctl.service
 else
-    cat << 'EOF' > /etc/systemd/system/dimsd.service
+    cat << 'EOF' > /etc/systemd/system/simctl.service
 [Unit]
-Description=Disable IMS Daemon (dimsd)
-Documentation=https://github.com/nura-eco/dimsd
+Description=Cellular SIM & Modem Management Daemon (simctl)
 After=ModemManager.service qmi-proxy.service
 Wants=ModemManager.service qmi-proxy.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/bin/dimsd disable
+ExecStart=/usr/local/bin/simctl disable
 StandardOutput=journal
 StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
+Alias=dimsd.service
 EOF
 fi
 
-chmod 644 /etc/systemd/system/dimsd.service
 systemctl daemon-reload
-echo "${GREEN}[OK] systemd daemon reloaded.${NC}"
+systemctl enable simctl.service
+echo "${GREEN}[OK] systemd service enabled: simctl.service${NC}"
 
-echo "Enabling and starting dimsd.service..."
-systemctl enable --now dimsd.service || true
-
-echo "\n${YELLOW}--> Step 5: Live Hardware Check and Configuration Sync...${NC}"
-echo "Running /usr/local/bin/dimsd check --update to verify live hardware..."
-/usr/local/bin/dimsd check --update || true
+echo "\n${YELLOW}--> Step 5: Executing initial hardware verification...${NC}"
+/usr/local/bin/simctl check || true
 
 echo "\n${GREEN}======================================================${NC}"
-echo "${GREEN}      dimsd Installation Completed Successfully!       ${NC}"
+echo "${GREEN}  simctl successfully installed and enabled on boot!  ${NC}"
 echo "${GREEN}======================================================${NC}"
-echo "Useful Commands:"
-echo "  dimsd status          # Check live SIM, bearer, and IMS status"
-echo "  dimsd disable         # Disconnect IMS bearers & disable profiles"
-echo "  dimsd enable          # Re-enable IMS profiles"
-echo "  dimsd check           # Verify hardware against config.toml"
-echo "  systemctl status dimsd.service # Check systemd service status"
-
+echo "Quick Commands:"
+echo "  simctl status            - Check modem, SIM slots & profile state"
+echo "  simctl switch-slot       - Inspect SIM slots & get switch suggestion"
+echo "  simctl switch-slot <1|2> - Switch active primary data SIM"
+echo "  simctl profile list      - List active APN profiles"
+echo "  simctl disable           - Disable IMS across all SIM slots"
+echo "  simctl enable            - Re-enable IMS profiles"
+echo ""
