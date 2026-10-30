@@ -61,3 +61,4 @@ Confirms: **0 findings, 0 warnings, 0 errors, 8/8 tests passing.**
 - **Defensive Parsing:** All regex extractions use safe `if let Some(...)` pattern matching with zero risk of panics on malformed modem string output.
 - **Fail-Safe Dynamic Hardware Discovery:** Resilient fallback logic dynamically recovers if modem indices change on hot-plugging.
 - **Strongly Typed Domain Errors:** Centralized `DimsdError` via `thiserror`.
+

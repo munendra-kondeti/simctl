@@ -12,7 +12,26 @@ pub struct SlotCardInfo {
     #[serde(default)]
     pub is_primary: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub usim_aid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pin1_state: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchSlotResult {
+    pub previous_slot: Option<u8>,
+    pub new_slot: u8,
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileOperationResult {
+    pub action: String,
+    pub index: Option<u32>,
+    pub apn: Option<String>,
+    pub success: bool,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

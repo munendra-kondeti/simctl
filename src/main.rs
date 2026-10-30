@@ -4,10 +4,16 @@ mod error;
 mod modem;
 
 use clap::Parser;
-use cli::{ActionArgs, CheckArgs, Cli, Commands, DaemonArgs, SlotSelection, StatusArgs};
+use cli::{
+    ActionArgs, CheckArgs, Cli, Commands, DaemonArgs, ProfileCommands, SlotSelection, StatusArgs,
+    SwitchSlotArgs,
+};
 use config::Config;
 use error::Result;
-use modem::types::{FullStatusReport, OperationResult, SystemHardwareCheck};
+use modem::types::{
+    FullStatusReport, OperationResult, ProfileOperationResult, SwitchSlotResult,
+    SystemHardwareCheck, WdsProfile,
+};
 use modem::ModemManager;
 use std::thread::sleep;
 use std::time::Duration;
@@ -52,6 +58,8 @@ fn main() -> Result<()> {
         Some(Commands::Status(args)) => handle_status(&modem_mgr, &config, &cli, &args),
         Some(Commands::Disable(args)) => handle_disable(&modem_mgr, &config, &cli, &args),
         Some(Commands::Enable(args)) => handle_enable(&modem_mgr, &config, &cli, &args),
+        Some(Commands::SwitchSlot(args)) => handle_switch_slot(&modem_mgr, &config, &cli, &args),
+        Some(Commands::Profile(args)) => handle_profile(&modem_mgr, &config, &cli, &args),
         Some(Commands::Check(args)) => {
             handle_check(&modem_mgr, &mut config, &config_path, &cli, &args)
         }
@@ -100,6 +108,59 @@ fn handle_enable(mgr: &ModemManager, config: &Config, cli: &Cli, args: &ActionAr
     }
 
     print_operation_result(&res);
+    Ok(())
+}
+
+fn handle_switch_slot(
+    mgr: &ModemManager,
+    config: &Config,
+    cli: &Cli,
+    args: &SwitchSlotArgs,
+) -> Result<()> {
+    let res = mgr.switch_slot(config, args.target_slot, !args.no_restart_mm)?;
+
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&res)?);
+        return Ok(());
+    }
+
+    print_switch_slot_result(&res);
+    Ok(())
+}
+
+fn handle_profile(
+    mgr: &ModemManager,
+    config: &Config,
+    cli: &Cli,
+    cmd: &ProfileCommands,
+) -> Result<()> {
+    match cmd {
+        ProfileCommands::List => {
+            let qmi_device = mgr.resolve_device(&config.modem.device);
+            let status = mgr.get_status(config, SlotSelection::All);
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&status.wds_profiles)?);
+                return Ok(());
+            }
+            print_profile_list(&status.wds_profiles, &qmi_device);
+        }
+        ProfileCommands::Add(args) => {
+            let res = mgr.create_profile(config, &args.apn, &args.pdp_type, args.disabled)?;
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&res)?);
+                return Ok(());
+            }
+            print_profile_operation_result(&res);
+        }
+        ProfileCommands::Delete(args) => {
+            let res = mgr.delete_profile(config, args.index)?;
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&res)?);
+                return Ok(());
+            }
+            print_profile_operation_result(&res);
+        }
+    }
     Ok(())
 }
 
@@ -369,6 +430,48 @@ fn print_check_report(c: &SystemHardwareCheck, updated: bool) {
         println!("\n[OK] Config perfectly matches live system hardware.");
     } else {
         println!("\n[!] Configuration differs from detected hardware. Run 'dimsd check --update' to sync.");
+    }
+    println!("=========================================");
+}
+
+fn print_switch_slot_result(res: &SwitchSlotResult) {
+    println!("=== SIM Provisioning Switch ===");
+    println!("Status          : SUCCESS");
+    println!("Active SIM Slot : Slot {}", res.new_slot);
+    if let Some(prev) = res.previous_slot {
+        println!("Previous Slot   : Slot {prev}");
+    }
+    println!("Message         : {}", res.message);
+    println!("===============================");
+}
+
+fn print_profile_operation_result(res: &ProfileOperationResult) {
+    println!("=== WDS Profile Operation ===");
+    println!("Action  : {}", res.action.to_uppercase());
+    println!("Status  : SUCCESS");
+    if let Some(idx) = res.index {
+        println!("Index   : {idx}");
+    }
+    if let Some(apn) = &res.apn {
+        println!("APN     : '{apn}'");
+    }
+    println!("Message : {}", res.message);
+    println!("=============================");
+}
+
+fn print_profile_list(profiles: &[WdsProfile], device: &str) {
+    println!("=== WDS 3GPP APN Profiles ({device}) ===");
+    if profiles.is_empty() {
+        println!("  (No profiles retrieved or QMI restricted - run with 'sudo')");
+    } else {
+        for p in profiles {
+            let ims_tag = if p.is_ims { " [IMS PROFILE]" } else { "" };
+            let state_tag = if p.disabled { "DISABLED" } else { "ACTIVE" };
+            println!(
+                "  [{}] APN: '{:<12}' | PDP: {:<12} | Status: {}{}",
+                p.index, p.apn, p.pdp_type, state_tag, ims_tag
+            );
+        }
     }
     println!("=========================================");
 }

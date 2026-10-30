@@ -4,7 +4,7 @@ pub mod types;
 
 use crate::cli::SlotSelection;
 use crate::config::Config;
-use crate::error::Result;
+use crate::error::{DimsdError, Result};
 use mmcli::Mmcli;
 use qmicli::Qmicli;
 use std::fs;
@@ -12,7 +12,10 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
-use types::{FullStatusReport, OperationResult, SystemHardwareCheck};
+use types::{
+    FullStatusReport, OperationResult, ProfileOperationResult, SwitchSlotResult,
+    SystemHardwareCheck,
+};
 
 pub struct ModemManager {
     mmcli: Mmcli,
@@ -346,6 +349,98 @@ impl ModemManager {
             profiles_modified: modified_profiles,
             message: "IMS enabled successfully".to_string(),
             dry_run,
+        })
+    }
+
+    /// Switches the active primary cellular provisioning session to the target SIM slot (1 or 2)
+    pub fn switch_slot(
+        &self,
+        config: &Config,
+        target_slot: u8,
+        restart_mm: bool,
+    ) -> Result<SwitchSlotResult> {
+        let qmi_device = self.resolve_device(&config.modem.device);
+        let slots = self.qmicli.get_card_status(&qmi_device)?;
+
+        let current_primary = slots.iter().find(|s| s.is_primary).map(|s| s.slot);
+        let target_info = slots
+            .iter()
+            .find(|s| s.slot == target_slot)
+            .ok_or(DimsdError::SlotNotPresent(target_slot))?;
+
+        if !target_info.present {
+            return Err(DimsdError::CommandFailed {
+                command: format!("switch-slot {target_slot}"),
+                message: format!("SIM Slot {target_slot} is empty; cannot activate an empty slot"),
+            });
+        }
+
+        let aid = target_info
+            .usim_aid
+            .as_deref()
+            .ok_or_else(|| DimsdError::CommandFailed {
+                command: format!("switch-slot {target_slot}"),
+                message: format!("No valid USIM Application ID detected on Slot {target_slot}"),
+            })?;
+
+        info!(
+            "Switching Primary GW provisioning session to Slot {} (AID: {})...",
+            target_slot, aid
+        );
+
+        self.qmicli
+            .change_provisioning_session(&qmi_device, target_slot, aid)?;
+
+        if restart_mm {
+            info!("Restarting ModemManager to re-probe active SIM subscription...");
+            let _ = std::process::Command::new("systemctl")
+                .args(["restart", "ModemManager"])
+                .status();
+        }
+
+        Ok(SwitchSlotResult {
+            previous_slot: current_primary,
+            new_slot: target_slot,
+            success: true,
+            message: format!(
+                "Successfully switched active SIM provisioning session to Slot {target_slot}"
+            ),
+        })
+    }
+
+    /// Adds a new WDS 3GPP profile
+    pub fn create_profile(
+        &self,
+        config: &Config,
+        apn: &str,
+        pdp_type: &str,
+        disabled: bool,
+    ) -> Result<ProfileOperationResult> {
+        let qmi_device = self.resolve_device(&config.modem.device);
+        let new_index = self
+            .qmicli
+            .create_wds_profile(&qmi_device, apn, pdp_type, disabled)?;
+
+        Ok(ProfileOperationResult {
+            action: "create".to_string(),
+            index: Some(new_index),
+            apn: Some(apn.to_string()),
+            success: true,
+            message: format!("WDS profile created at index {new_index} for APN '{apn}'"),
+        })
+    }
+
+    /// Deletes an existing WDS 3GPP profile by index
+    pub fn delete_profile(&self, config: &Config, index: u32) -> Result<ProfileOperationResult> {
+        let qmi_device = self.resolve_device(&config.modem.device);
+        self.qmicli.delete_wds_profile(&qmi_device, index)?;
+
+        Ok(ProfileOperationResult {
+            action: "delete".to_string(),
+            index: Some(index),
+            apn: None,
+            success: true,
+            message: format!("WDS profile {index} successfully deleted"),
         })
     }
 

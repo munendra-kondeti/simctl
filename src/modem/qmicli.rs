@@ -41,6 +41,13 @@ static TECH_RE: Lazy<Regex> =
 #[allow(clippy::non_std_lazy_statics)]
 static SERVICE_NAME_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*([A-Za-z0-9 ]+service)\s*$").expect("valid regex"));
+#[allow(clippy::non_std_lazy_statics)]
+static AID_HEX_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\s*([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){4,})\s*$").expect("valid regex")
+});
+#[allow(clippy::non_std_lazy_statics)]
+static NEW_PROFILE_INDEX_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"Profile index:\s*'(\d+)'").expect("valid regex"));
 
 pub struct Qmicli {
     pub qmicli_path: String,
@@ -119,6 +126,49 @@ impl Qmicli {
         let stdout = self.run_device(device, &["--imsa-get-ims-services-status"])?;
         Ok(parse_ims_services(&stdout))
     }
+
+    /// Changes the active provisioning session to a target slot and AID
+    pub fn change_provisioning_session(&self, device: &str, slot: u8, aid: &str) -> Result<()> {
+        let arg =
+            format!("session-type=primary-gw-provisioning,activate=yes,slot={slot},aid={aid}");
+        let cmd_arg = format!("--uim-change-provisioning-session={arg}");
+        debug!("Changing provisioning session: {}", cmd_arg);
+        let _ = self.run_device(device, &[&cmd_arg])?;
+        Ok(())
+    }
+
+    /// Creates a new WDS 3GPP profile and returns its assigned index
+    pub fn create_wds_profile(
+        &self,
+        device: &str,
+        apn: &str,
+        pdp_type: &str,
+        disabled: bool,
+    ) -> Result<u32> {
+        let disabled_part = if disabled { ",disabled=yes" } else { "" };
+        let arg = format!("3gpp,apn={apn},pdp-type={pdp_type}{disabled_part}");
+        let cmd_arg = format!("--wds-create-profile={arg}");
+        debug!("Creating WDS profile: {}", cmd_arg);
+        let stdout = self.run_device(device, &[&cmd_arg])?;
+
+        NEW_PROFILE_INDEX_RE
+            .captures(&stdout)
+            .and_then(|cap| cap.get(1))
+            .and_then(|m| m.as_str().parse::<u32>().ok())
+            .ok_or_else(|| DimsdError::QmiError {
+                device: device.to_string(),
+                message: "Failed to extract new profile index from qmicli output".to_string(),
+            })
+    }
+
+    /// Deletes an existing WDS 3GPP profile by index
+    pub fn delete_wds_profile(&self, device: &str, index: u32) -> Result<()> {
+        let arg = format!("3gpp,{index}");
+        let cmd_arg = format!("--wds-delete-profile={arg}");
+        debug!("Deleting WDS profile: {}", cmd_arg);
+        let _ = self.run_device(device, &[&cmd_arg])?;
+        Ok(())
+    }
 }
 
 #[allow(clippy::similar_names)]
@@ -139,6 +189,7 @@ pub fn parse_uim_card_status(output: &str) -> Vec<SlotCardInfo> {
     let mut current_state = String::new();
     let mut has_usim = false;
     let mut has_isim = false;
+    let mut usim_aid: Option<String> = None;
     let mut pin1_state = None;
 
     for line in lines {
@@ -153,6 +204,7 @@ pub fn parse_uim_card_status(output: &str) -> Vec<SlotCardInfo> {
                     has_usim,
                     has_isim,
                     is_primary,
+                    usim_aid: usim_aid.take(),
                     pin1_state,
                 });
             }
@@ -160,6 +212,7 @@ pub fn parse_uim_card_status(output: &str) -> Vec<SlotCardInfo> {
             current_state = "unknown".to_string();
             has_usim = false;
             has_isim = false;
+            usim_aid = None;
             pin1_state = None;
             continue;
         }
@@ -178,6 +231,13 @@ pub fn parse_uim_card_status(output: &str) -> Vec<SlotCardInfo> {
                     }
                     if app_str.contains("isim") {
                         has_isim = true;
+                    }
+                }
+            }
+            if let Some(cap) = AID_HEX_RE.captures(line) {
+                if let Some(m) = cap.get(1) {
+                    if has_usim && usim_aid.is_none() {
+                        usim_aid = Some(m.as_str().replace(':', ""));
                     }
                 }
             }
@@ -201,6 +261,7 @@ pub fn parse_uim_card_status(output: &str) -> Vec<SlotCardInfo> {
             has_usim,
             has_isim,
             is_primary,
+            usim_aid,
             pin1_state,
         });
     }

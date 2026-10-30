@@ -73,11 +73,63 @@ pub enum Commands {
     /// Re-enable IMS profiles and autoconnect for selected slot
     Enable(ActionArgs),
 
+    /// Switch active SIM provisioning session to a target slot (1 or 2)
+    #[command(alias = "switch-sim")]
+    SwitchSlot(SwitchSlotArgs),
+
+    /// Manage WDS 3GPP APN profiles (list, add, delete)
+    #[command(subcommand)]
+    Profile(ProfileCommands),
+
     /// Check modem hardware, ports, and compare/update config.toml
     Check(CheckArgs),
 
     /// Run daemon mode (default action if no subcommand passed)
     Daemon(DaemonArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct SwitchSlotArgs {
+    /// Target SIM slot number (1 or 2)
+    #[arg(value_name = "SLOT", value_parser = clap::value_parser!(u8).range(1..=2))]
+    pub target_slot: u8,
+
+    /// Do not restart `ModemManager` after switching
+    #[arg(long)]
+    pub no_restart_mm: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ProfileCommands {
+    /// List all 3GPP APN profiles
+    List,
+
+    /// Add a new 3GPP APN profile
+    Add(ProfileAddArgs),
+
+    /// Delete an existing 3GPP APN profile by index
+    #[command(alias = "del")]
+    Delete(ProfileDeleteArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ProfileAddArgs {
+    /// APN string (e.g. 'jionet', 'internet', 'ims')
+    pub apn: String,
+
+    /// PDP type (IPV4, IPV6, or IPV4V6)
+    #[arg(long = "pdp-type", visible_alias = "pdp", default_value = "IPV4V6")]
+    pub pdp_type: String,
+
+    /// Create profile in disabled state
+    #[arg(long)]
+    pub disabled: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ProfileDeleteArgs {
+    /// Profile index to delete
+    pub index: u32,
 }
 
 #[derive(Args, Debug, Default, Clone)]
