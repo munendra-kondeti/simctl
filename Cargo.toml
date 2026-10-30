@@ -2,7 +2,7 @@
 name = "simctl"
 version = "0.1.0"
 edition = "2021"
-authors = ["roy <roy@nura.eco>"]
+authors = ["Open Source Contributors"]
 description = "Lightweight, robust cellular SIM and modem management CLI and daemon for Qualcomm-based Nura OS"
 license = "MIT OR Apache-2.0"
 

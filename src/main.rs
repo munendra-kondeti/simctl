@@ -86,11 +86,7 @@ fn handle_status(mgr: &ModemManager, config: &Config, cli: &Cli, args: &StatusAr
 
 fn handle_disable(mgr: &ModemManager, config: &Config, cli: &Cli, args: &ActionArgs) -> Result<()> {
     let qmi_dev = mgr.resolve_device(&config.modem.device);
-    let modem_id = mgr
-        .resolve_modem_id(&config.modem.modem_id)
-        .unwrap_or_else(|_| "0".to_string());
-
-    mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
+    let _ = mgr.wait_for_ready(&config.modem.modem_id, &qmi_dev, config.daemon.timeout_secs);
 
     let slot = config.resolve_slot(args.slot.or(cli.slot));
     let res = mgr.disable_ims(config, slot, args.dry_run)?;
@@ -105,6 +101,9 @@ fn handle_disable(mgr: &ModemManager, config: &Config, cli: &Cli, args: &ActionA
 }
 
 fn handle_enable(mgr: &ModemManager, config: &Config, cli: &Cli, args: &ActionArgs) -> Result<()> {
+    let qmi_dev = mgr.resolve_device(&config.modem.device);
+    let _ = mgr.wait_for_ready(&config.modem.modem_id, &qmi_dev, config.daemon.timeout_secs);
+
     let slot = config.resolve_slot(args.slot.or(cli.slot));
     let res = mgr.enable_ims(config, slot, args.dry_run)?;
 
@@ -217,16 +216,13 @@ fn handle_check(
 fn handle_daemon(mgr: &ModemManager, config: &Config, cli: &Cli, args: &DaemonArgs) -> Result<()> {
     let slot = config.resolve_slot(cli.slot);
     let qmi_dev = mgr.resolve_device(&config.modem.device);
-    let modem_id = mgr
-        .resolve_modem_id(&config.modem.modem_id)
-        .unwrap_or_else(|_| "0".to_string());
 
     info!(
         "simctl daemon starting (waiting up to {}s for modem readiness)...",
         config.daemon.timeout_secs
     );
 
-    mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
+    let _ = mgr.wait_for_ready(&config.modem.modem_id, &qmi_dev, config.daemon.timeout_secs);
 
     let res = mgr.disable_ims(config, slot, false)?;
     info!("{}", res.message);
@@ -248,16 +244,13 @@ fn handle_daemon(mgr: &ModemManager, config: &Config, cli: &Cli, args: &DaemonAr
 fn handle_default_boot(mgr: &ModemManager, config: &Config, cli: &Cli) -> Result<()> {
     let slot = config.resolve_slot(cli.slot);
     let qmi_dev = mgr.resolve_device(&config.modem.device);
-    let modem_id = mgr
-        .resolve_modem_id(&config.modem.modem_id)
-        .unwrap_or_else(|_| "0".to_string());
 
     info!(
-        "simctl boot execution (modem: {}, qmi: {}, slot: {:?})",
-        modem_id, qmi_dev, slot
+        "simctl boot execution (qmi: {}, slot: {:?})",
+        qmi_dev, slot
     );
 
-    mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
+    let _ = mgr.wait_for_ready(&config.modem.modem_id, &qmi_dev, config.daemon.timeout_secs);
     let res = mgr.disable_ims(config, slot, false)?;
 
     if cli.json {
@@ -314,7 +307,7 @@ fn print_status_report(r: &FullStatusReport) {
     println!("\n--- WDS 3GPP Profiles (QMI) ---");
     if r.wds_profiles.is_empty() {
         println!(
-            "  (QMI query restricted - run with 'sudo dimsd status' for modem profile details)"
+            "  (QMI query restricted - run with 'sudo simctl status' for modem profile details)"
         );
     } else {
         for p in &r.wds_profiles {

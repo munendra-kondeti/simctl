@@ -6,7 +6,7 @@ A robust, lightweight Rust daemon and CLI utility for **Nura OS** (postmarketOS 
 
 ## 1. System Context & Hardware Topology
 
-From inspection of the target device (`100.110.148.36`):
+From inspection of the target device (`<target-device-ip>`):
 - **Hardware**: Qualcomm MSM8953 (Snapdragon 625/450, 8-core ARM Cortex-A53 `aarch64`).
 - **Operating System**: Nura OS edge (`ID_LIKE=alpine`, postmarketOS based).
 - **Kernel**: Linux 7.1.3-msm8953.
@@ -193,10 +193,10 @@ WantedBy=multi-user.target
 
 ## 6. Project Structure & Scripts
 
-Project Root: `/home/roy/Desktop/Nura-Testing-Projects/dimsd`
+Project Root: `simctl`
 
 ```text
-dimsd/
+simctl/
 ├── Cargo.toml
 ├── config.example.toml    # Default example configuration
 ├── README.md              # Local documentation and reference manual
@@ -206,7 +206,7 @@ dimsd/
 │   ├── install.sh         # Installation script (detects system, updates config.toml, sets up service)
 │   └── uninstall.sh       # Clean uninstaller script with IMS restoration option
 ├── systemd/
-│   └── dimsd.service      # Systemd unit file
+│   └── simctl.service     # Systemd unit file
 └── src/
     ├── main.rs            # Entrypoint & CLI execution
     ├── cli.rs             # Clap arguments & subcommands (status, disable, enable, check, daemon)

@@ -127,16 +127,6 @@ impl Config {
             }
         }
 
-        let legacy_path = PathBuf::from("/etc/dimsd/config.toml");
-        if legacy_path.exists() {
-            debug!("Loading fallback legacy config from /etc/dimsd/config.toml");
-            if let Ok(content) = fs::read_to_string(&legacy_path) {
-                if let Ok(cfg) = toml::from_str::<Config>(&content) {
-                    return (cfg, legacy_path);
-                }
-            }
-        }
-
         let local_path = PathBuf::from("./config.toml");
         if local_path.exists() {
             debug!("Loading fallback local config from ./config.toml");

@@ -1,7 +1,7 @@
 # Audit & Verification Report: Default All-Slots Improvement
 
 **Date**: 2026-10-30  
-**Target Hardware**: Qualcomm Snapdragon MSM8953 (`aarch64`), Nura OS edge (`100.110.148.36`)  
+**Target Hardware**: Qualcomm Snapdragon MSM8953 (`aarch64`), Nura OS edge (`<target-device-ip>`)  
 **Scope**: Making all general commands default to "All Slots" unless a specific slot is targeted, answering the user's architectural question on config vs code changes, and verifying zero Clippy warnings.
 
 ---

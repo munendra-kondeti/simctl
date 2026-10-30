@@ -1,7 +1,7 @@
 # Audit & Verification Report: Project Rename to `simctl` & `switch-slot` Inspection
 
 **Date**: 2026-10-30  
-**Target Hardware**: Qualcomm Snapdragon MSM8953 (`aarch64`), Nura OS edge (`100.110.148.36`)  
+**Target Hardware**: Qualcomm Snapdragon MSM8953 (`aarch64`), Nura OS edge (`<target-device-ip>`)  
 **Scope**: Project renaming from `dimsd` to `simctl`, adding slot inspection and dynamic command recommendation to `switch-slot`, maintaining backwards compatibility aliases, and full verification.
 
 ---

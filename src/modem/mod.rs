@@ -72,31 +72,50 @@ impl ModemManager {
     }
 
     /// Waits for modem and SIM readiness on boot up to `timeout_secs`
-    pub fn wait_for_ready(&self, modem_id: &str, device: &str, timeout_secs: u64) {
+    pub fn wait_for_ready(&self, configured_modem: &str, device: &str, timeout_secs: u64) -> Option<String> {
         let start = Instant::now();
         let timeout = Duration::from_secs(timeout_secs);
 
         debug!(
-            "Waiting for modem {} and QMI device {} to be ready (timeout: {}s)...",
-            modem_id, device, timeout_secs
+            "Waiting for modem and QMI device {} to be ready (timeout: {}s)...",
+            device, timeout_secs
         );
 
+        let mut qmi_ready = false;
+        let mut resolved_modem_id: Option<String> = None;
+
         while start.elapsed() < timeout {
-            // Check if card status can be read
-            if let Ok(slots) = self.qmicli.get_card_status(device) {
-                if slots.iter().any(|s| s.present) {
-                    debug!("Modem card status is ready, slots: {:?}", slots);
-                    return;
+            // Check if card status can be read via QMI
+            if !qmi_ready {
+                if let Ok(slots) = self.qmicli.get_card_status(device) {
+                    if slots.iter().any(|s| s.present) {
+                        debug!("Modem card status is ready, slots: {:?}", slots);
+                        qmi_ready = true;
+                    }
                 }
             }
 
-            sleep(Duration::from_millis(1000));
+            // Check if ModemManager has discovered the modem
+            if resolved_modem_id.is_none() {
+                if let Ok(id) = self.resolve_modem_id(configured_modem) {
+                    debug!("ModemManager resolved modem id: {id}");
+                    resolved_modem_id = Some(id);
+                }
+            }
+
+            if qmi_ready && resolved_modem_id.is_some() {
+                return resolved_modem_id;
+            }
+
+            sleep(Duration::from_millis(500));
         }
 
         warn!(
-            "Modem readiness timed out after {}s, proceeding anyway",
-            timeout_secs
+            "Modem readiness timed out after {}s (qmi_ready={qmi_ready}, mm_ready={}), proceeding anyway",
+            timeout_secs,
+            resolved_modem_id.is_some()
         );
+        resolved_modem_id
     }
 
     /// Performs complete system hardware and configuration check
@@ -277,7 +296,7 @@ impl ModemManager {
         dry_run: bool,
     ) -> Result<OperationResult> {
         let qmi_device = self.resolve_device(&config.modem.device);
-        let modem_id = self.resolve_modem_id(&config.modem.modem_id)?;
+        let modem_id = self.resolve_modem_id(&config.modem.modem_id).ok();
 
         let mut disconnected = Vec::new();
         let mut modified_profiles = Vec::new();
@@ -309,18 +328,21 @@ impl ModemManager {
         modified_profiles.extend(modified);
 
         // Disconnect active IMS bearers in ModemManager AFTER profile is disabled
-        let bearers = self.mmcli.get_bearers(&modem_id)?;
-        for b in &bearers {
-            if b.is_ims && b.connected {
-                if dry_run {
-                    info!("[DRY RUN] Would disconnect IMS bearer {}", b.id);
-                    disconnected.push(b.id.clone());
-                } else {
-                    info!("Disconnecting IMS bearer {}", b.id);
-                    if let Err(e) = self.mmcli.disconnect_bearer(&b.id) {
-                        warn!("Failed to disconnect bearer {}: {}", b.id, e);
-                    } else {
-                        disconnected.push(b.id.clone());
+        if let Some(ref mid) = modem_id {
+            if let Ok(bearers) = self.mmcli.get_bearers(mid) {
+                for b in &bearers {
+                    if b.is_ims && b.connected {
+                        if dry_run {
+                            info!("[DRY RUN] Would disconnect IMS bearer {}", b.id);
+                            disconnected.push(b.id.clone());
+                        } else {
+                            info!("Disconnecting IMS bearer {}", b.id);
+                            if let Err(e) = self.mmcli.disconnect_bearer(&b.id) {
+                                warn!("Failed to disconnect bearer {}: {}", b.id, e);
+                            } else {
+                                disconnected.push(b.id.clone());
+                            }
+                        }
                     }
                 }
             }
@@ -524,11 +546,11 @@ impl ModemManager {
         })
     }
 
-    /// Saves state to /var/lib/dimsd/state.json for precise restoration
+    /// Saves state to /var/lib/simctl/state.json for precise restoration
     fn save_backup_state(modified_profiles: &[u32]) {
-        let state_dir = Path::new("/var/lib/dimsd");
+        let state_dir = Path::new("/var/lib/simctl");
         if let Err(e) = fs::create_dir_all(state_dir) {
-            debug!("Cannot create /var/lib/dimsd: {}", e);
+            debug!("Cannot create /var/lib/simctl: {}", e);
             return;
         }
 

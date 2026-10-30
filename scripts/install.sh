@@ -119,6 +119,8 @@ Wants=ModemManager.service qmi-proxy.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/local/bin/simctl disable
+Restart=on-failure
+RestartSec=3s
 StandardOutput=journal
 StandardError=journal
 

@@ -63,7 +63,7 @@ All identified mechanical and stylistic issues have been resolved. The codebase 
 ---
 
 ## 4. Current Repository State
-- Clean source code under [`src/`](file:///home/roy/Desktop/Nura-Testing-Projects/dimsd/src/)
-- Comprehensive reviews archived under [`docs/reviews/`](file:///home/roy/Desktop/Nura-Testing-Projects/dimsd/docs/reviews/)
-- Binary output compiled at [`target/debug/dimsd`](file:///home/roy/Desktop/Nura-Testing-Projects/dimsd/target/debug/dimsd)
+- Clean source code under `src/`
+- Comprehensive reviews archived under `docs/reviews/`
+- Binary output compiled at `target/debug/simctl`
 

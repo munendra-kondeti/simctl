@@ -1,4 +1,4 @@
-# /etc/simctl/config.toml (legacy fallback: /etc/dimsd/config.toml)
+# /etc/simctl/config.toml
 # Configuration file for simctl (Cellular SIM & Modem Manager)
 
 [modem]

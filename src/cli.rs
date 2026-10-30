@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(
     name = "simctl",
-    author = "roy <roy@nura.eco>",
+    author = "Open Source Contributors",
     version,
     about = "Cellular SIM and modem management CLI and daemon for Nura OS",
     long_about = "Lightweight, robust CLI utility and system daemon to manage dual SIM slots, switch provisioning sessions, manage APN profiles, and control IMS/VoLTE on Qualcomm-based Nura OS."
@@ -142,7 +142,7 @@ pub struct ActionArgs {
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct CheckArgs {
-    /// Atomically update /etc/dimsd/config.toml with live detected hardware
+    /// Atomically update /etc/simctl/config.toml with live detected hardware
     #[arg(short, long)]
     pub update: bool,
 }
