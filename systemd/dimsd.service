@@ -1,0 +1,16 @@
+[Unit]
+Description=Disable IMS Daemon (dimsd)
+Documentation=https://github.com/nura-eco/dimsd
+After=ModemManager.service qmi-proxy.service
+Wants=ModemManager.service qmi-proxy.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/dimsd disable
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

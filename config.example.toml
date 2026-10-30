@@ -1,0 +1,30 @@
+# /etc/dimsd/config.toml
+# Configuration file for dimsd (Disable IMS Daemon)
+
+[modem]
+# Target QMI device: "auto" for dynamic detection (qrtr://0, /dev/cdc-wdm0), or explicit path
+device = "auto"
+
+# Target ModemManager modem index: "auto" for dynamic detection, or explicit index e.g. "0"
+modem_id = "auto"
+
+# Default SIM slot to manage: 1, 2, or "all"
+default_slot = "1"
+
+# Expected cellular network interface: "auto" (rmnet_ipa0, etc.) or specific interface name
+net_interface = "auto"
+
+[daemon]
+# Maximum seconds to wait on boot for modem readiness (SIM probing / registration)
+timeout_secs = 30
+
+# Watchdog check interval in seconds if running with --watch
+poll_interval_secs = 10
+
+# Automatically update this config file if live ports or modem indices change
+auto_sync_config = true
+
+[logging]
+# Log level: "trace", "debug", "info", "warn", "error"
+level = "info"
+
