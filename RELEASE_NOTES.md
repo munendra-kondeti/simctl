@@ -73,3 +73,4 @@ sudo sh scripts/install.sh
 # Verify live status
 sudo simctl status
 ```
+
