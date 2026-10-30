@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+// Independent boolean hardware flags representing SIM presence, USIM/ISIM application, and active provisioning
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlotCardInfo {
     pub slot: u8,

@@ -66,7 +66,7 @@ fn main() -> Result<()> {
 fn handle_status(mgr: &ModemManager, config: &Config, cli: &Cli, args: &StatusArgs) -> Result<()> {
     // For status check, default to All slots to present both SIM 1 & SIM 2 hardware information
     let slot = args.slot.or(cli.slot).unwrap_or(SlotSelection::All);
-    let report = mgr.get_status(config, slot)?;
+    let report = mgr.get_status(config, slot);
 
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -110,7 +110,7 @@ fn handle_check(
     cli: &Cli,
     args: &CheckArgs,
 ) -> Result<()> {
-    let check = mgr.check_system(config, config_path)?;
+    let check = mgr.check_system(config, config_path);
 
     if args.update {
         // Update config with detected hardware
@@ -147,7 +147,7 @@ fn handle_daemon(mgr: &ModemManager, config: &Config, cli: &Cli, args: &DaemonAr
         config.daemon.timeout_secs
     );
 
-    let _ = mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
+    mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
 
     let res = mgr.disable_ims(config, slot, false)?;
     info!("{}", res.message);
@@ -178,7 +178,7 @@ fn handle_default_boot(mgr: &ModemManager, config: &Config, cli: &Cli) -> Result
         modem_id, qmi_dev, slot
     );
 
-    let _ = mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
+    mgr.wait_for_ready(&modem_id, &qmi_dev, config.daemon.timeout_secs);
     let res = mgr.disable_ims(config, slot, false)?;
 
     if cli.json {
@@ -234,7 +234,9 @@ fn print_status_report(r: &FullStatusReport) {
 
     println!("\n--- WDS 3GPP Profiles (QMI) ---");
     if r.wds_profiles.is_empty() {
-        println!("  (QMI query restricted - run with 'sudo dimsd status' for modem profile details)");
+        println!(
+            "  (QMI query restricted - run with 'sudo dimsd status' for modem profile details)"
+        );
     } else {
         for p in &r.wds_profiles {
             let ims_tag = if p.is_ims { " [IMS PROFILE]" } else { "" };
@@ -253,7 +255,11 @@ fn print_status_report(r: &FullStatusReport) {
         for b in &r.active_bearers {
             let ims_tag = if b.is_ims { " [IMS BEARER]" } else { "" };
             let iface = b.interface.as_deref().unwrap_or("none");
-            let state = if b.connected { "CONNECTED" } else { "DISCONNECTED" };
+            let state = if b.connected {
+                "CONNECTED"
+            } else {
+                "DISCONNECTED"
+            };
             println!(
                 "  Bearer {} | APN: '{:<10}' | Interface: {:<8} | State: {}{}",
                 b.id, b.apn, iface, state, ims_tag

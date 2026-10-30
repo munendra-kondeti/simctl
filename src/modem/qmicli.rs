@@ -90,13 +90,13 @@ impl Qmicli {
     /// Queries SIM slot status via --uim-get-card-status
     pub fn get_card_status(&self, device: &str) -> Result<Vec<SlotCardInfo>> {
         let stdout = self.run_device(device, &["--uim-get-card-status"])?;
-        parse_uim_card_status(&stdout)
+        Ok(parse_uim_card_status(&stdout))
     }
 
     /// Lists 3GPP profiles via --wds-get-profile-list=3gpp
     pub fn get_wds_profiles(&self, device: &str) -> Result<Vec<WdsProfile>> {
         let stdout = self.run_device(device, &["--wds-get-profile-list=3gpp"])?;
-        parse_wds_profiles(&stdout)
+        Ok(parse_wds_profiles(&stdout))
     }
 
     /// Disables or enables a 3GPP profile at index
@@ -111,18 +111,18 @@ impl Qmicli {
     /// Queries IMS registration status via --imsa-get-ims-registration-status
     pub fn get_ims_registration(&self, device: &str) -> Result<ImsRegistrationStatus> {
         let stdout = self.run_device(device, &["--imsa-get-ims-registration-status"])?;
-        parse_ims_registration(&stdout)
+        Ok(parse_ims_registration(&stdout))
     }
 
     /// Queries IMS services status via --imsa-get-ims-services-status
     pub fn get_ims_services(&self, device: &str) -> Result<Vec<ImsServiceInfo>> {
         let stdout = self.run_device(device, &["--imsa-get-ims-services-status"])?;
-        parse_ims_services(&stdout)
+        Ok(parse_ims_services(&stdout))
     }
 }
 
 #[allow(clippy::similar_names)]
-pub fn parse_uim_card_status(output: &str) -> Result<Vec<SlotCardInfo>> {
+pub fn parse_uim_card_status(output: &str) -> Vec<SlotCardInfo> {
     let mut slots = Vec::new();
 
     let lines: Vec<&str> = output.lines().collect();
@@ -205,10 +205,10 @@ pub fn parse_uim_card_status(output: &str) -> Result<Vec<SlotCardInfo>> {
         });
     }
 
-    Ok(slots)
+    slots
 }
 
-pub fn parse_wds_profiles(output: &str) -> Result<Vec<WdsProfile>> {
+pub fn parse_wds_profiles(output: &str) -> Vec<WdsProfile> {
     let mut profiles = Vec::new();
 
     let mut current_idx: Option<u32> = None;
@@ -267,10 +267,10 @@ pub fn parse_wds_profiles(output: &str) -> Result<Vec<WdsProfile>> {
         });
     }
 
-    Ok(profiles)
+    profiles
 }
 
-pub fn parse_ims_registration(output: &str) -> Result<ImsRegistrationStatus> {
+pub fn parse_ims_registration(output: &str) -> ImsRegistrationStatus {
     let mut status = "unknown".to_string();
     let mut technology = None;
 
@@ -287,10 +287,10 @@ pub fn parse_ims_registration(output: &str) -> Result<ImsRegistrationStatus> {
         }
     }
 
-    Ok(ImsRegistrationStatus { status, technology })
+    ImsRegistrationStatus { status, technology }
 }
 
-pub fn parse_ims_services(output: &str) -> Result<Vec<ImsServiceInfo>> {
+pub fn parse_ims_services(output: &str) -> Vec<ImsServiceInfo> {
     let mut services = Vec::new();
     let mut current_service = String::new();
 
@@ -315,7 +315,7 @@ pub fn parse_ims_services(output: &str) -> Result<Vec<ImsServiceInfo>> {
         }
     }
 
-    Ok(services)
+    services
 }
 
 #[cfg(test)]
@@ -340,7 +340,7 @@ Slot [1]:
 Slot [2]:
 	Card state: 'error: no-atr-received (3)'
 ";
-        let slots = parse_uim_card_status(sample).unwrap();
+        let slots = parse_uim_card_status(sample);
         assert_eq!(slots.len(), 2);
         assert_eq!(slots[0].slot, 1);
         assert!(slots[0].present);
@@ -363,7 +363,7 @@ Profile list retrieved:
 		PDP type: 'ipv4-or-ipv6'
 		APN disabled: 'no'
 ";
-        let profiles = parse_wds_profiles(sample).unwrap();
+        let profiles = parse_wds_profiles(sample);
         assert_eq!(profiles.len(), 2);
         assert_eq!(profiles[0].index, 1);
         assert!(!profiles[0].is_ims);

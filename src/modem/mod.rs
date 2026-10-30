@@ -33,7 +33,7 @@ impl ModemManager {
         Self::default()
     }
 
-    /// Resolves target QMI device string ("auto" -> "qrtr://0" or fallback)
+    /// Resolves target QMI device string ("auto" -> `<qrtr://0>` or fallback)
     #[allow(clippy::unused_self)]
     pub fn resolve_device(&self, configured: &str) -> String {
         if configured != "auto" && !configured.is_empty() {
@@ -69,7 +69,7 @@ impl ModemManager {
     }
 
     /// Waits for modem and SIM readiness on boot up to `timeout_secs`
-    pub fn wait_for_ready(&self, modem_id: &str, device: &str, timeout_secs: u64) -> Result<()> {
+    pub fn wait_for_ready(&self, modem_id: &str, device: &str, timeout_secs: u64) {
         let start = Instant::now();
         let timeout = Duration::from_secs(timeout_secs);
 
@@ -83,7 +83,7 @@ impl ModemManager {
             if let Ok(slots) = self.qmicli.get_card_status(device) {
                 if slots.iter().any(|s| s.present) {
                     debug!("Modem card status is ready, slots: {:?}", slots);
-                    return Ok(());
+                    return;
                 }
             }
 
@@ -94,11 +94,10 @@ impl ModemManager {
             "Modem readiness timed out after {}s, proceeding anyway",
             timeout_secs
         );
-        Ok(())
     }
 
     /// Performs complete system hardware and configuration check
-    pub fn check_system(&self, config: &Config, config_path: &Path) -> Result<SystemHardwareCheck> {
+    pub fn check_system(&self, config: &Config, config_path: &Path) -> SystemHardwareCheck {
         let qmi_device = self.resolve_device(&config.modem.device);
         let modem_id = self.resolve_modem_id(&config.modem.modem_id).ok();
 
@@ -107,10 +106,7 @@ impl ModemManager {
             None => None,
         };
 
-        let slots = self
-            .qmicli
-            .get_card_status(&qmi_device)
-            .unwrap_or_else(|_| Vec::new());
+        let slots = self.qmicli.get_card_status(&qmi_device).unwrap_or_default();
 
         let qrtr_available =
             Path::new("/sys/bus/qrtr").exists() || Path::new("/dev/qrtr-radv").exists();
@@ -156,7 +152,7 @@ impl ModemManager {
             }
         }
 
-        Ok(SystemHardwareCheck {
+        SystemHardwareCheck {
             modem_detected: modem_identity,
             qmi_device_resolved: qmi_device,
             net_interface_resolved,
@@ -165,11 +161,11 @@ impl ModemManager {
             config_matches_hardware: matches,
             config_path: config_path.display().to_string(),
             notes,
-        })
+        }
     }
 
     /// Queries complete status report for display or JSON output
-    pub fn get_status(&self, config: &Config, slot_sel: SlotSelection) -> Result<FullStatusReport> {
+    pub fn get_status(&self, config: &Config, slot_sel: SlotSelection) -> FullStatusReport {
         let qmi_device = self.resolve_device(&config.modem.device);
         let modem_id = self.resolve_modem_id(&config.modem.modem_id).ok();
 
@@ -178,18 +174,15 @@ impl ModemManager {
             None => None,
         };
 
-        let slots = self
-            .qmicli
-            .get_card_status(&qmi_device)
-            .unwrap_or_else(|_| Vec::new());
+        let slots = self.qmicli.get_card_status(&qmi_device).unwrap_or_default();
 
         let wds_profiles = self
             .qmicli
             .get_wds_profiles(&qmi_device)
-            .unwrap_or_else(|_| Vec::new());
+            .unwrap_or_default();
 
         let active_bearers = match &modem_id {
-            Some(id) => self.mmcli.get_bearers(id).unwrap_or_else(|_| Vec::new()),
+            Some(id) => self.mmcli.get_bearers(id).unwrap_or_default(),
             None => Vec::new(),
         };
 
@@ -197,7 +190,7 @@ impl ModemManager {
         let ims_services = self
             .qmicli
             .get_ims_services(&qmi_device)
-            .unwrap_or_else(|_| Vec::new());
+            .unwrap_or_default();
 
         let target_str = match slot_sel {
             SlotSelection::Slot1 => "Slot 1 (Single SIM)".to_string(),
@@ -205,7 +198,7 @@ impl ModemManager {
             SlotSelection::All => "All Slots (Dual SIM)".to_string(),
         };
 
-        Ok(FullStatusReport {
+        FullStatusReport {
             modem: modem_identity,
             slots,
             qmi_device,
@@ -214,7 +207,7 @@ impl ModemManager {
             ims_registration,
             ims_services,
             target_slot: target_str,
-        })
+        }
     }
 
     /// Disables IMS bearers, profiles, and autoconnect
